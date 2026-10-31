@@ -79,14 +79,60 @@ more than a local tool does. What is in place, and where it is tested (`tests/te
 What it does not have: accounts, quotas per user, or abuse detection beyond the rate limit. If you
 expose it widely, put it behind a CDN or a proxy that provides those.
 
-## Hugging Face Space
+## Running with no server: the browser build
 
-`deploy/hf-space/` holds the two files a Docker Space needs. The Space installs ChangeRisk from this
-GitHub repository at a pinned ref, so the Space repository stays tiny.
+Hosting a server costs money and has to be defended. The browser build needs neither. It is the same
+engine, compiled to WebAssembly by [Pyodide](https://pyodide.org), running in a Web Worker inside the
+page. A pasted diff never leaves the visitor's machine. A pull request is fetched from GitHub by the
+visitor's own browser. The host only serves static files, so it can be a free Hugging Face **Static**
+Space, GitHub Pages, or any file host.
+
+```
+python scripts/build_browser_bundle.py        # the Python package as one JSON file (committed)
+python scripts/build_space.py --ref <commit>  # writes dist/space/index.html and README.md
+```
+
+`index.html` is the dashboard's page with every asset address pointing at this repository **at that
+commit**, through jsDelivr, so a deployed Space never changes under its readers. To release a new
+version: commit, build with the new commit's full SHA, upload the two files.
+
+What is different from the hosted server, and why:
+
+| | Hosted server | Browser build |
+|---|---|---|
+| Where analysis runs | the server | the visitor's browser |
+| GitHub limit | one shared allowance (60 an hour, 5,000 with a `GITHUB_TOKEN`) | 60 an hour **per visitor's network**; a token cannot be kept secret in a page, so there is none |
+| Rate limits, size caps | enforced by the server | the diff cap and time budget still apply; a visitor can only slow down their own tab |
+| HTML export | yes | no (JSON, SARIF and Markdown only; the standalone page needs the server's files) |
+| First visit | instant | downloads about 10 MB once (Python and the engine), then the browser caches it |
+| Reports | kept in the browser | kept in the browser |
+
+The page's content security policy is set in a `<meta>` tag: no inline scripts, scripts only from the
+two pinned jsDelivr paths, network only to those, `api.github.com` and `raw.githubusercontent.com`.
+`wasm-unsafe-eval` is allowed because WebAssembly needs it; plain `eval` is not.
+`tests/test_space.py` checks the policy, that every address is pinned, and that what the page loads
+exists in the repository.
+
+The trust you extend is jsDelivr (serving files at a commit) and Pyodide's release on the same CDN.
+Both are pinned by version or commit. A Space has no server to patch and nothing to keep running.
+
+### Creating the Space
+
+1. At huggingface.co/new-space choose **Static** as the SDK, and make it public.
+2. Add `README.md` and `index.html` from `dist/space/` at the root (the web editor is enough: both are
+   small).
+3. Open the Space. The first load fetches Python; later loads are cached.
+
+## Hugging Face Docker Space (needs a paid plan)
+
+Docker Spaces are not available on every account, so this is the alternative for those who have one.
+`deploy/hf-space-docker/` holds the two files it needs. The Space installs ChangeRisk from this GitHub
+repository at a pinned ref, so the Space repository stays tiny, and it runs the server in this
+document, with its rate limits and an optional `GITHUB_TOKEN`.
 
 1. Create a Space at huggingface.co/new-space. Choose **Docker** as the SDK and a blank template.
-2. Put `deploy/hf-space/README.md` and `deploy/hf-space/Dockerfile` at the root of the Space
-   repository (through the web editor, or by cloning it and pushing).
+2. Put `deploy/hf-space-docker/README.md` and `deploy/hf-space-docker/Dockerfile` at the root of the
+   Space repository (through the web editor, or by cloning it and pushing).
 3. In the Space's settings, add a **secret** named `GITHUB_TOKEN` (optional, but without it GitHub
    allows only 60 requests an hour for the whole Space, shared by every visitor).
 4. Open the Space's logs after the first few requests and check the `proxy check` line. If it says
@@ -100,4 +146,4 @@ Free Spaces go to sleep after a period without visitors and take a short while t
 
 Streamlit builds interfaces from its own widgets. Using it here would mean rewriting the dashboard
 and losing its design (the risk ruler, the diff view with annotations, the checklist), for a worse
-result. The Docker route runs the real dashboard unchanged.
+result. Both routes above run the real dashboard unchanged.

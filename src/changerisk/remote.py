@@ -152,12 +152,17 @@ class _SameHostRedirects(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+def require_trusted(url: str) -> None:
+    """Refuse anything but HTTPS to the two GitHub hosts."""
+    if urlsplit(url).hostname not in ALLOWED_HOSTS or not url.startswith("https://"):
+        raise SourceError("Refusing to contact that address.", 502)
+
+
 def _urllib_transport(max_bytes: int) -> Transport:
     opener = urllib.request.build_opener(_SameHostRedirects)
 
     def fetch(url: str, headers: Mapping[str, str]) -> tuple[int, Mapping[str, str], bytes]:
-        if urlsplit(url).hostname not in ALLOWED_HOSTS or not url.startswith("https://"):
-            raise SourceError("Refusing to contact that address.", 502)
+        require_trusted(url)
         req = urllib.request.Request(url, headers=dict(headers))
         try:
             with opener.open(req, timeout=TIMEOUT) as resp:

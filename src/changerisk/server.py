@@ -21,7 +21,7 @@ from .gitops import GitError
 from .models import RiskReport
 from .reports import render
 from .rules import load_all
-from .rules.base import CATEGORIES, all_rules, option_defaults
+from .rules.base import describe_rules, option_defaults
 from .store import ReportStore
 from .webassets import web_dir
 
@@ -314,28 +314,6 @@ class App(WebApp):
             )  # fmt: skip
             self.store.save(report)
         return Response.json(report.to_dict())
-
-
-def describe_rules(cfg) -> list[dict]:
-    out = []
-    for rule in all_rules():
-        info = rule.info
-        settings = cfg.rule(info.id)
-        out.append(
-            {
-                "id": info.id,
-                "name": info.name,
-                "category": info.category,
-                "category_label": CATEGORIES[info.category],
-                "severity": (settings.severity or info.severity).label,
-                "enabled": settings.enabled,
-                "summary": info.summary,
-                "why": info.why,
-                "tests": list(info.tests),
-                "options": {**info.options, **settings.options},
-            }
-        )
-    return out
 
 
 def make_handler(app: WebApp) -> type[BaseHTTPRequestHandler]:

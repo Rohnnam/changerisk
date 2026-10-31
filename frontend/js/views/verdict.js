@@ -76,7 +76,7 @@ function exportMenu(exporter) {
     );
   menu.append(
     h('summary', { class: 'btn' }, icon('download', 15), 'Export', icon('chevron', 12)),
-    h('div', { class: 'menu-pop' }, ['html', 'json', 'sarif', 'markdown'].map(item)),
+    h('div', { class: 'menu-pop' }, (exporter.formats || ['html', 'json', 'sarif', 'markdown']).map(item)),
   );
   return menu;
 }

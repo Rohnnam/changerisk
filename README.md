@@ -126,10 +126,19 @@ still reported as a configuration change.) Pass `--use-head-config` to `changeri
 `changerisk serve --hosted` runs the same dashboard as a public service with no repository behind it.
 The change comes from a pasted diff or a public GitHub pull request, nothing is stored on the server,
 and reports stay in the visitor's browser. It is built for deployment (there is a `Dockerfile`, and a
-ready-made Hugging Face Space in `deploy/hf-space/`) and carries the protections a public service
+ready-made Docker Space in `deploy/hf-space-docker/`) and carries the protections a public service
 needs: rate limits, size caps, a fixed list of hosts it may contact, and tested resistance to
 pathological input. See [docs/DEPLOY.md](docs/DEPLOY.md). Use the local dashboard for private
 repositories: it reads the repository directly and also uses commit history.
+
+### In the browser, with no server
+
+The same dashboard also runs with nothing behind it: the Python engine is compiled to WebAssembly
+(Pyodide) and runs in a worker inside the page, so a pasted diff never leaves the visitor's machine
+and the host only serves static files. That is how the public Space is deployed, and it is why the
+Space costs nothing to keep up. HTML export and a shared GitHub allowance need a server; everything
+else is the same. `scripts/build_space.py` builds it, and [docs/DEPLOY.md](docs/DEPLOY.md) explains
+the differences.
 
 ## Configuration
 

@@ -17,11 +17,21 @@ const SOURCES = [
 
 const kb = (text) => Math.ceil(new Blob([text]).size / 1024);
 
+// What was typed survives the form being redrawn (a failed analysis redraws it), but not a reload.
+const draft = { url: '', diff: '' };
+let engineText = '';
+
+/** Update the engine's progress line without redrawing the form, which would lose a half-pasted diff. */
+export function setEngineStatus(text) {
+  engineText = text;
+  for (const node of document.querySelectorAll('.engine-status')) node.textContent = text;
+}
+
 /**
  * The input for the hosted dashboard: a public GitHub pull request, or a diff pasted in.
  * The pasted diff is not remembered between visits; only the choice of tab and gate is.
  */
-export function renderSourceForm(root, { busy, error, limits, onAnalyze }) {
+export function renderSourceForm(root, { busy, error, limits, browser, onAnalyze }) {
   const saved = recall(PREFS, {});
   const state = {
     source: SOURCES.some((s) => s.id === saved.source) ? saved.source : 'github',
@@ -38,6 +48,8 @@ export function renderSourceForm(root, { busy, error, limits, onAnalyze }) {
     autocomplete: 'off',
     spellcheck: 'false',
     inputmode: 'url',
+    value: draft.url,
+    onInput: (e) => { draft.url = e.target.value; },
   });
   const diff = h('textarea', {
     id: 's-diff',
@@ -46,8 +58,9 @@ export function renderSourceForm(root, { busy, error, limits, onAnalyze }) {
     spellcheck: 'false',
     autocomplete: 'off',
     placeholder: 'Paste the output of git diff',
-    onInput: () => sync(),
+    onInput: () => { draft.diff = diff.value; sync(); },
   });
+  diff.value = draft.diff; // a textarea's text is not an attribute
   const size = h('span', { class: 'source-size dim small num' });
   const problem = h('p', { class: 'form-error', role: 'alert', hidden: true });
   const submit = h('button', { type: 'submit', class: 'btn btn-primary', disabled: busy || null }, busy ? 'Analysing…' : 'Analyse');
@@ -75,6 +88,7 @@ export function renderSourceForm(root, { busy, error, limits, onAnalyze }) {
       if (!chosen) return;
       if (chosen.size > maxKb * 1024) return show(`That file is larger than ${maxKb} KB.`);
       diff.value = await chosen.text();
+      draft.diff = diff.value;
       choose('diff');
       sync();
     },
@@ -141,7 +155,9 @@ export function renderSourceForm(root, { busy, error, limits, onAnalyze }) {
       'div',
       { class: 'source-pane', data: { pane: 'github' } },
       h('div', { class: 'field' }, h('label', { for: 's-url' }, 'Pull request'), url),
-      h('p', { class: 'source-hint' }, 'Public repositories only. A compare link or owner/repo#123 works too.'),
+      h('p', { class: 'source-hint' }, browser
+        ? 'Public repositories only. Your browser fetches the change from GitHub directly, which allows about 60 requests an hour per network.'
+        : 'Public repositories only. A compare link or owner/repo#123 works too.'),
     ),
     h(
       'div',
@@ -152,14 +168,21 @@ export function renderSourceForm(root, { busy, error, limits, onAnalyze }) {
         { class: 'source-tools' },
         h('label', { class: 'btn btn-quiet', for: 's-file' }, 'Choose a .diff or .patch file'),
         file,
-        h('button', { type: 'button', class: 'btn btn-quiet', onClick: () => { diff.value = SAMPLE_DIFF; choose('diff'); sync(); diff.focus(); } }, 'Load an example'),
+        h('button', { type: 'button', class: 'btn btn-quiet', onClick: () => { diff.value = SAMPLE_DIFF; draft.diff = SAMPLE_DIFF; choose('diff'); sync(); diff.focus(); } }, 'Load an example'),
         size,
       ),
     ),
     h(
       'div',
       { class: 'source-foot' },
-      h('p', { class: 'privacy' }, 'Diffs are analysed in memory and are not stored or logged. Reports stay in this browser.'),
+      h(
+        'div',
+        { class: 'source-note' },
+        h('p', { class: 'privacy' }, browser
+          ? 'The analysis runs inside this page. A pasted diff is never sent anywhere, and reports stay in this browser.'
+          : 'Diffs are analysed in memory and are not stored or logged. Reports stay in this browser.'),
+        browser ? h('p', { class: 'engine-status dim small' }, engineText) : null,
+      ),
       submit,
     ),
   );
