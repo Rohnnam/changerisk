@@ -5,6 +5,9 @@ you how risky it is and why. It looks for the things a reviewer skims past: a pr
 raised tenfold, a test file deleted, a lockfile that did not move with its manifest, a migration
 that drops a table, a CI step set to `continue-on-error`, a key pasted into a config file.
 
+**Try it without installing anything:** https://huggingface.co/spaces/RNam370/changerisk. Paste a diff or a public
+pull request; the analysis runs in your browser.
+
 The result is a risk report. The score is only the headline. Each report also gives the reasons
 behind it with the actual lines quoted, and a checklist of what to test because of them.
 
