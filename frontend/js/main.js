@@ -1,11 +1,12 @@
 import { h, mount, announce } from './dom.js';
 import { api, ApiError } from './api.js';
-import { hostedBackend, serverBackend } from './backend.js';
+import { browserBackend, hostedBackend, serverBackend } from './backend.js';
+import { createEngine } from './browser-engine.js';
 import { createStore } from './store.js';
 import { applyTheme, currentTheme, themeSwitch } from './theme.js';
 import { LEVEL_LABEL } from './model.js';
 import { renderToolbar } from './views/toolbar.js';
-import { renderSourceForm } from './views/source-form.js';
+import { renderSourceForm, setEngineStatus } from './views/source-form.js';
 import { renderRail } from './views/rail.js';
 import { changeHeader, verdictPanel } from './views/verdict.js';
 import { reasonsSection } from './views/reasons.js';
@@ -17,7 +18,18 @@ import { commitsPanel } from './views/commits.js';
 import { historyView } from './views/history.js';
 import { rulesView } from './views/rules.js';
 
-const boot = window.__CHANGERISK__ || {};
+// The standalone report sets window.__CHANGERISK__; the browser build puts its settings in a JSON block,
+// which a strict content-security policy leaves alone (an inline script would have to be allowed).
+function readBoot() {
+  if (window.__CHANGERISK__) return window.__CHANGERISK__;
+  try {
+    return JSON.parse(document.getElementById('changerisk-config').textContent);
+  } catch {
+    return {};
+  }
+}
+
+const boot = readBoot();
 const STATIC = Boolean(boot.static);
 const REPO_URL = 'https://github.com/Rohnnam/changerisk';
 
@@ -92,7 +104,7 @@ async function loadReport(id) {
 
 async function loadRules() {
   try {
-    store.set({ rules: (await api.rules()).rules });
+    store.set({ rules: await backend.rules() });
   } catch (error) {
     store.set({ loadError: error.message });
   }
@@ -167,7 +179,7 @@ function renderNav() {
 function renderBar() {
   const { repo, report } = store.get();
   let label = null;
-  if (hosted()) label = h('span', { class: 'bar-repo' }, 'public instance');
+  if (hosted()) label = h('span', { class: 'bar-repo' }, store.get().repo && store.get().repo.browser ? 'runs in your browser' : 'public instance');
   else {
     const name = repo ? repo.name : report ? report.repo : '';
     if (name) label = h('span', { class: 'bar-repo', title: repo ? repo.path : name }, name, repo && repo.branch ? ` @ ${repo.branch}` : '');
@@ -178,7 +190,7 @@ function renderBar() {
 function renderToolbarOnly() {
   const { repo, busy, error } = store.get();
   if (!repo || STATIC) return;
-  if (hosted()) renderSourceForm(el.toolbar, { busy, error, limits: repo.limits, onAnalyze: analyze });
+  if (hosted()) renderSourceForm(el.toolbar, { busy, error, limits: repo.limits, browser: Boolean(repo.browser), onAnalyze: analyze });
   else renderToolbar(el.toolbar, { repo, busy, error, onAnalyze: analyze });
 }
 
@@ -265,6 +277,25 @@ function renderAll() {
 
 // --- start -------------------------------------------------------------------
 
+/** The browser build has no server to ask, so what /api/repo would say is known up front. */
+function browserRepo() {
+  return { hosted: true, browser: true, limits: { max_diff_kb: boot.browser.max_diff_kb || 2048 } };
+}
+
+/** Begin loading Python as soon as the page opens, so it is usually ready by the time a change is pasted. */
+function startEngine() {
+  const engine = createEngine(boot.browser, setEngineStatus);
+  setEngineStatus('Starting the analysis engine (about 10 MB, once)…');
+  engine.ready().then(
+    () => {
+      setEngineStatus('');
+      announce('The analysis engine is ready.');
+    },
+    (error) => setEngineStatus(error.message),
+  );
+  return engine;
+}
+
 async function start() {
   applyTheme(currentTheme());
   if (STATIC) {
@@ -275,8 +306,8 @@ async function start() {
     return;
   }
   try {
-    const repo = await api.repo();
-    backend = repo.hosted ? hostedBackend() : serverBackend();
+    const repo = boot.browser ? browserRepo() : await api.repo();
+    backend = boot.browser ? browserBackend(startEngine()) : repo.hosted ? hostedBackend() : serverBackend();
     if (repo.hosted) document.body.dataset.hosted = '';
     store.set({ repo, reports: await backend.reports() });
   } catch (error) {

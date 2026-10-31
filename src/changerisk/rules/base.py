@@ -188,3 +188,26 @@ def join_names(names: list[str], limit: int = 3) -> str:
     if rest:
         return ", ".join(shown) + f" and {rest} more"
     return ", ".join(shown[:-1]) + " and " + shown[-1]
+
+
+def describe_rules(cfg: Config) -> list[dict[str, Any]]:
+    """Every rule with the severity and options in effect, for the dashboard's rule list."""
+    out = []
+    for rule in all_rules():
+        info = rule.info
+        settings = cfg.rule(info.id)
+        out.append(
+            {
+                "id": info.id,
+                "name": info.name,
+                "category": info.category,
+                "category_label": CATEGORIES[info.category],
+                "severity": (settings.severity or info.severity).label,
+                "enabled": settings.enabled,
+                "summary": info.summary,
+                "why": info.why,
+                "tests": list(info.tests),
+                "options": {**info.options, **settings.options},
+            }
+        )
+    return out

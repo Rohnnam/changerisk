@@ -28,13 +28,13 @@ from .models import Level, RiskReport
 from .remote import MAX_DIFF_BYTES, GitHub, SourceError, load_source
 from .reports import render
 from .rules import load_all
+from .rules.base import describe_rules
 from .server import (
     CSP,
     EXPORTS,
     SECURITY_HEADERS,
     Response,
     WebApp,
-    describe_rules,
     make_handler,
 )
 

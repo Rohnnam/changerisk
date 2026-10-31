@@ -129,8 +129,8 @@ def test_the_container_is_set_up_for_production():
     assert {".git", ".venv", "tests", "examples"} <= set(ignore)
 
 
-def test_the_hugging_face_space_files_are_consistent():
-    space = ROOT / "deploy" / "hf-space"
+def test_the_docker_space_files_are_consistent():
+    space = ROOT / "deploy" / "hf-space-docker"
     readme = (space / "README.md").read_text(encoding="utf-8")
     front = yaml.safe_load(readme.split("---")[1])
     assert front["sdk"] == "docker" and front["app_port"] == 7860
