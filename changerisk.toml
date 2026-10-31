@@ -1,0 +1,10 @@
+# ChangeRisk's own settings, used when it checks its own pull requests.
+
+[gate]
+fail_on = "high"
+
+[paths]
+# These two files are example data: a diff that deliberately contains the risky changes the tool
+# is built to find (verify=False, a debug flag, a dropped table). Flagging them is a false positive.
+# On pull requests the configuration is read from the base branch, so this takes effect once merged.
+ignore = ["frontend/js/sample-diff.js", "scripts/gen_sample_diff.py"]

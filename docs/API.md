@@ -79,7 +79,7 @@ endpoints of the local server do not exist here.
 {
   "schema": "changerisk.report/1",
   "id": "20260914-011200-52c840a",      // null until saved
-  "tool_version": "0.1.0",
+  "tool_version": "0.2.0",
   "generated_at": "2026-09-14T01:12:00+00:00",
   "repo": "ledgerline",
   "range": {

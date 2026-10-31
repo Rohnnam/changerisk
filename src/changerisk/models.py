@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -16,6 +17,14 @@ DELETED = "deleted"
 RENAMED = "renamed"
 COPIED = "copied"
 TYPECHANGE = "typechange"
+
+
+_FULL_SHA = re.compile(r"[0-9a-f]{40}")
+
+
+def display_ref(ref: str) -> str:
+    """A ref as a person would write it: full commit ids are cut to eight characters."""
+    return ref[:8] if _FULL_SHA.fullmatch(ref) else ref
 
 
 class Severity(IntEnum):

@@ -121,6 +121,16 @@ On pull requests the configuration is read from the base branch, not from the ch
 request cannot switch off its own gate by editing `changerisk.toml`. (A change that edits the file is
 still reported as a configuration change.) Pass `--use-head-config` to `changerisk ci` to opt out.
 
+### Hosted mode
+
+`changerisk serve --hosted` runs the same dashboard as a public service with no repository behind it.
+The change comes from a pasted diff or a public GitHub pull request, nothing is stored on the server,
+and reports stay in the visitor's browser. It is built for deployment (there is a `Dockerfile`, and a
+ready-made Hugging Face Space in `deploy/hf-space/`) and carries the protections a public service
+needs: rate limits, size caps, a fixed list of hosts it may contact, and tested resistance to
+pathological input. See [docs/DEPLOY.md](docs/DEPLOY.md). Use the local dashboard for private
+repositories: it reads the repository directly and also uses commit history.
+
 ## Configuration
 
 Everything is optional. `changerisk init` writes a commented starter file. A `changerisk.toml` in the
@@ -204,3 +214,4 @@ action.yml             the GitHub Action
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how the pieces fit and how to add a rule.
 [docs/API.md](docs/API.md) documents the dashboard's HTTP API and the report format.
 [docs/DESIGN.md](docs/DESIGN.md) records the dashboard's design decisions.
+[docs/DEPLOY.md](docs/DEPLOY.md) covers hosted mode: running it, its settings, and its threat model.

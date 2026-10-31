@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..models import RiskReport
+from ..models import RiskReport, display_ref
 from ..rules.base import plural
 
 MARKER = "<!-- changerisk-report -->"
@@ -28,7 +28,7 @@ def _commits(report: RiskReport) -> str:
 
 def _range(report: RiskReport) -> str:
     if report.mode == "range":
-        return f"{report.base}...{report.head}"
+        return f"{display_ref(report.base)}...{display_ref(report.head)}"
     return "staged changes" if report.mode == "staged" else "working tree"
 
 

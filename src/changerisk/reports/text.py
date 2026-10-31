@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import textwrap
 
-from ..models import Level, RiskReport, Severity
+from ..models import Level, RiskReport, Severity, display_ref
 from ..rules.base import plural
 
 TAGS = {
@@ -52,7 +52,7 @@ def commits_text(report: RiskReport) -> str:
 
 def _short_range(report: RiskReport) -> str:
     if report.mode == "range":
-        return f"{report.base}...{report.head}"
+        return f"{display_ref(report.base)}...{display_ref(report.head)}"
     return "staged changes" if report.mode == "staged" else "working tree"
 
 
