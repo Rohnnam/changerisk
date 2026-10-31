@@ -240,10 +240,14 @@ def _api_error(status: int, headers: Mapping[str, str], body: bytes) -> SourceEr
         wait = ""
         reset = headers.get("x-ratelimit-reset")
         if reset and reset.isdigit():
-            minutes = max(1, round((int(reset) - time.time()) / 60))
-            wait = f" It resets in about {minutes} minute{'s' if minutes != 1 else ''}."
+            minutes = round((int(reset) - time.time()) / 60)
+            if minutes > 60:  # GitHub's window is an hour, so this clock is wrong; do not repeat it
+                wait = " It resets within the hour."
+            else:
+                minutes = max(1, minutes)
+                wait = f" It resets in about {minutes} minute{'s' if minutes != 1 else ''}."
         return SourceError(
-            "GitHub's rate limit for this server has been reached." + wait + " "
+            "GitHub's limit on anonymous requests has been reached." + wait + " "
             "You can paste the diff instead, which does not use GitHub.",
             429,
         )
@@ -359,6 +363,20 @@ def changes_from_compare(gh: GitHub, ref: CompareRef) -> tuple[ChangeSet, Config
     return changes, config, notes
 
 
+MAX_LABEL_CHARS = 60
+
+
+def _diff_label(label: object) -> str:
+    """The name a diff is shown under. Optional, so a page can call a built-in example by its title."""
+    if label is None:
+        return "pasted diff"
+    if not isinstance(label, str) or not label.strip() or not label.isprintable():
+        raise SourceError("The diff's name has to be plain text.")
+    if len(label) > MAX_LABEL_CHARS:
+        raise SourceError(f"The diff's name has to be at most {MAX_LABEL_CHARS} characters.")
+    return label.strip()
+
+
 def load_source(gh: GitHub, source: dict[str, Any]) -> tuple[ChangeSet, Config, list[str]]:
     """Resolve a request's `source` object into a change, the config to use, and report notes."""
     kind = source.get("type")
@@ -366,8 +384,9 @@ def load_source(gh: GitHub, source: dict[str, Any]) -> tuple[ChangeSet, Config, 
         text = source.get("text")
         if not isinstance(text, str):
             raise SourceError("The diff has to be text.")
-        changes = changes_from_diff(text)
-        changes.source = {"type": "diff", "label": "pasted diff"}
+        label = _diff_label(source.get("label"))
+        changes = changes_from_diff(text, label=label)
+        changes.source = {"type": "diff", "label": label}
         return (
             changes,
             Config(),

@@ -256,7 +256,7 @@ def test_a_broken_repository_config_does_not_stop_the_analysis():
             {"x-ratelimit-remaining": "0", "x-ratelimit-reset": "9999999999"},
             b"{}",
             429,
-            "rate limit",
+            "limit on anonymous requests",
         ),
         (429, {}, b'{"message":"API rate limit exceeded"}', 429, "paste the diff instead"),
         (406, {}, b'{"message":"diff exceeds the maximum number of lines"}', 413, "this large"),
@@ -270,6 +270,39 @@ def test_github_errors_become_plain_messages(status, headers, body, expected_sta
     with pytest.raises(SourceError) as err:
         GitHub(transport=transport).json("/repos/a/b/pulls/1")
     assert err.value.status == expected_status and fragment in str(err.value)
+
+
+def test_the_rate_limit_message_gives_a_wait_only_when_it_can_be_believed(monkeypatch):
+    monkeypatch.setattr(remote.time, "time", lambda: 1_000_000)
+
+    def message(reset):
+        headers = {"x-ratelimit-remaining": "0", "x-ratelimit-reset": str(reset)}
+        with pytest.raises(SourceError) as err:
+            GitHub(transport=lambda u, h: (403, headers, b"{}")).json("/repos/a/b/pulls/1")
+        return str(err.value)
+
+    assert "resets in about 5 minutes" in message(1_000_000 + 300)
+    assert "resets in about 1 minute." in message(1_000_000 + 10)
+    assert "resets in about 1 minute." in message(1_000_000 - 90)  # the clock ran ahead
+    assert "resets within the hour" in message(1_000_000 + 6 * 3600)  # the clock is wrong
+    assert "paste the diff instead" in message(1_000_000 + 300)
+
+
+def test_a_diff_may_carry_a_short_plain_name():
+    diff = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n+y\n"
+    gh = GitHub(transport=lambda u, h: (404, {}, b"{}"))
+    changes, _, _ = remote.load_source(gh, {"type": "diff", "text": diff})
+    assert changes.repo_name == "pasted diff" and changes.source["label"] == "pasted diff"
+    named, _, _ = remote.load_source(
+        gh, {"type": "diff", "text": diff, "label": "  Example: tidy  "}
+    )
+    assert named.repo_name == "Example: tidy" and named.source == {
+        "type": "diff",
+        "label": "Example: tidy",
+    }
+    for bad in ("", "   ", "x" * 61, "two\nlines", 7, ["a"]):
+        with pytest.raises(SourceError, match="diff's name"):
+            remote.load_source(gh, {"type": "diff", "text": diff, "label": bad})
 
 
 def test_oversized_and_garbled_responses(monkeypatch):

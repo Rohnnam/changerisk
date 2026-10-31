@@ -41,6 +41,13 @@ test('summaries carry what the list needs and nothing heavy', () => {
   assert.equal('hunks' in s, false);
 });
 
+test('a named diff is listed under its name, an unnamed one under what the range says', () => {
+  const diff = (source) => ({ ...report(1), range: { mode: 'diff', base: '(pasted)', head: 'diff' }, source });
+  assert.equal(summarize({ ...diff({ type: 'diff', label: 'Example: tidy' }), id: 'a' }).head, 'Example: tidy');
+  assert.equal(summarize({ ...diff(null), id: 'b' }).head, 'diff');
+  assert.equal(summarize({ ...report(2), source: { type: 'github', label: 'o/r#1' }, id: 'c' }).head, 'topic-2');
+});
+
 test('summaries tolerate a sparse report', () => {
   const s = summarize({ id: 'y' });
   assert.equal(s.findings, 0);
