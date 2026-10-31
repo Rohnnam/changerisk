@@ -61,6 +61,7 @@ def test_what_the_page_loads_exists_in_the_repository(index):
 def test_the_page_has_a_strict_policy_and_runs_no_inline_code(index):
     policy = re.search(r'http-equiv="Content-Security-Policy" content="([^"]+)"', index).group(1)
     assert "'unsafe-inline'" not in policy and "default-src 'none'" in policy
+    assert "'unsafe-eval'" not in policy and "'wasm-unsafe-eval'" in policy  # WebAssembly only
     assert "worker-src blob:" in policy
     connect = re.search(r"connect-src ([^;]+)", policy).group(1).split()
     assert {"https://api.github.com", "https://raw.githubusercontent.com"} <= set(connect)

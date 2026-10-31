@@ -84,7 +84,8 @@ syntax rules by a test.
 | Output | `reports/` |
 | Persistence | `store.py` |
 | Dashboard server | `server.py` (shared base and the local app), `webassets.py` |
-| Hosted mode | `remote.py` (pasted diffs and GitHub), `hosted.py` (stateless app, limits), `Dockerfile`, `deploy/` |
+| Hosted mode | `remote.py` (pasted diffs and GitHub), `hosted.py` (stateless app, limits), `Dockerfile`, `deploy/hf-space-docker/` |
+| Browser build | `browser.py`, `scripts/build_browser_bundle.py`, `frontend/py/`, `frontend/js/browser-engine.js`, `browser-worker.js`, `scripts/build_space.py` |
 | GitHub | `github.py`, `action.yml` |
 | CLI | `cli.py` |
 
@@ -146,6 +147,35 @@ Getting a change from the network is the new risk, so `remote.py` is strict: it 
 hosts, parses URLs with anchored patterns, caps sizes, and never lets a rule see an unbounded line.
 Measuring it showed that a secret-detection pattern was quadratic on long runs of word characters
 (a minified bundle triggered it too); `tests/test_robustness.py` keeps it fixed.
+
+## Browser build
+
+The hosted server still has to be run and defended. The browser build removes it: the same Python
+engine runs inside the page, compiled to WebAssembly by Pyodide, so the host serves only static files.
+
+* **A page has no git and no sockets**, so everything goes through what `remote.py` already provides:
+  a `ChangeSet` from diff text, or from the GitHub API through a *transport* function. On the server the
+  transport is `urllib`; in the page (`browser.browser_transport`) it is a synchronous
+  `XMLHttpRequest`, which a Web Worker may use. The same blocking client serves both, and the
+  two-host allow-list (`remote.require_trusted`) is checked in the transport itself.
+* **The package ships as one JSON file** (`frontend/py/changerisk-py.json`, written by
+  `scripts/build_browser_bundle.py`). It leaves out the server, the CLI, the store, and the standalone
+  HTML report, which need a socket, a terminal or a disk. A test fails if the file is stale, and
+  another unpacks it into an empty directory and runs an analysis with nothing else on the path.
+* **The worker** (`js/browser-worker.js`, a classic script started from a Blob) loads Pyodide and the
+  bundle, then answers `analyze`, `rules` and `render` messages. `js/browser-engine.js` is the page's
+  side of that channel. Errors cross it as data (`{"error", "status"}`), never as tracebacks.
+* **The views are shared.** `main.js` picks `browserBackend` when the page carries a `changerisk-config`
+  block; reports are kept in `localStorage` like the hosted build, and exports are rendered by the
+  worker from the report the page holds.
+* **A static host serves one file you generate.** `scripts/build_space.py --ref <sha>` rewrites the
+  dashboard's `index.html` so every asset comes from this repository *at that commit* through jsDelivr,
+  and adds a content security policy in a `<meta>` tag: no inline scripts, scripts and network only to
+  the two pinned paths plus `api.github.com` and `raw.githubusercontent.com`, and `wasm-unsafe-eval`
+  (WebAssembly needs it) but not `unsafe-eval`.
+
+What it cannot do: HTML export, a shared GitHub token (the 60 requests an hour are the visitor's own),
+and anything that needs a repository on disk. The first visit downloads about 10 MB of Python.
 
 ## The dashboard server
 
