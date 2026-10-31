@@ -1,0 +1,135 @@
+/*
+  Design tokens. Graphite and chalk neutrals; colour is reserved for risk.
+  Layout concept: a faceplate band on top, a history rail on the left, and one column of
+  evidence that reads top to bottom (answer, reasons, tests, files).
+*/
+
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --ground: #e9ecee;
+  --surface: #f6f8f9;
+  --well: #e0e5e8;
+  --raised: #ffffff;
+
+  /* ink */
+  --ink: #12171b;
+  --ink-2: #444c53;
+  --ink-3: #66707a;
+  --line: #cfd6db;
+  --line-strong: #aeb8bf;
+  --on-ink: #f6f8f9;
+
+  /* faceplate band */
+  --bar-bg: #12171b;
+  --bar-ink: #f1f4f5;
+  --bar-ink-2: #a9b3ba;
+  --bar-line: #2c353b;
+  --bar-notch: #fab219;
+
+  /* risk levels: fixed, always paired with a shape and a word */
+  --st-low: #0ca30c;
+  --st-moderate: #fab219;
+  --st-high: #ec835a;
+  --st-critical: #d03b3b;
+  --tint-low: color-mix(in oklab, var(--st-low) 20%, var(--surface));
+  --tint-moderate: color-mix(in oklab, var(--st-moderate) 26%, var(--surface));
+  --tint-high: color-mix(in oklab, var(--st-high) 24%, var(--surface));
+  --tint-critical: color-mix(in oklab, var(--st-critical) 18%, var(--surface));
+
+  /* diff */
+  --add-bg: color-mix(in oklab, #2f9e5b 13%, var(--surface));
+  --add-mark: #1f7a45;
+  --del-bg: color-mix(in oklab, #c4453f 12%, var(--surface));
+  --del-mark: #a9362f;
+  --flag-bg: color-mix(in oklab, var(--st-moderate) 12%, var(--surface));
+
+  /* type */
+  --font: Bahnschrift, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-narrow: "Bahnschrift SemiCondensed", Bahnschrift, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, ui-monospace, "Liberation Mono", monospace;
+
+  --fs-xs: 0.72rem;   /* 11.5px: uppercase labels */
+  --fs-sm: 0.78rem;   /* 12.5px */
+  --fs-md: 0.875rem;  /* 14px */
+  --fs-lg: 1rem;
+  --fs-xl: 1.25rem;
+  --fs-2xl: 1.75rem;
+  --fs-hero: 5.5rem;  /* 88px */
+
+  /* space and shape */
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-5: 24px;
+  --gap-6: 32px;
+  --gap-7: 48px;
+  --radius: 3px;
+  --radius-lg: 6px;
+  --rail-w: 252px;
+  --main-w: 60rem;
+  --gutter: max(16px, env(safe-area-inset-left, 0px));
+  --shadow-pop: 0 6px 24px rgba(10, 16, 20, 0.18), 0 0 0 1px var(--line);
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #0f1316;
+    --surface: #171c20;
+    --well: #1f262b;
+    --raised: #1b2125;
+    --ink: #e8edf0;
+    --ink-2: #b2bbc1;
+    --ink-3: #8a949b;
+    --line: #2b343a;
+    --line-strong: #3d4850;
+    --on-ink: #0f1316;
+    --bar-bg: #0a0d0f;
+    --bar-line: #242c31;
+    --add-bg: color-mix(in oklab, #2f9e5b 17%, var(--surface));
+    --add-mark: #5fcf8b;
+    --del-bg: color-mix(in oklab, #c4453f 19%, var(--surface));
+    --del-mark: #f08a83;
+    --tint-low: color-mix(in oklab, var(--st-low) 24%, var(--surface));
+    --tint-moderate: color-mix(in oklab, var(--st-moderate) 24%, var(--surface));
+    --tint-high: color-mix(in oklab, var(--st-high) 26%, var(--surface));
+    --tint-critical: color-mix(in oklab, var(--st-critical) 30%, var(--surface));
+    --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--line);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #0f1316;
+  --surface: #171c20;
+  --well: #1f262b;
+  --raised: #1b2125;
+  --ink: #e8edf0;
+  --ink-2: #b2bbc1;
+  --ink-3: #8a949b;
+  --line: #2b343a;
+  --line-strong: #3d4850;
+  --on-ink: #0f1316;
+  --bar-bg: #0a0d0f;
+  --bar-line: #242c31;
+  --add-bg: color-mix(in oklab, #2f9e5b 17%, var(--surface));
+  --add-mark: #5fcf8b;
+  --del-bg: color-mix(in oklab, #c4453f 19%, var(--surface));
+  --del-mark: #f08a83;
+  --tint-low: color-mix(in oklab, var(--st-low) 24%, var(--surface));
+  --tint-moderate: color-mix(in oklab, var(--st-moderate) 24%, var(--surface));
+  --tint-high: color-mix(in oklab, var(--st-high) 26%, var(--surface));
+  --tint-critical: color-mix(in oklab, var(--st-critical) 30%, var(--surface));
+  --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--line);
+}
+
+/* Level helpers: set --st and --tint from a data attribute, so components stay generic. */
+[data-level="low"] { --st: var(--st-low); --tint: var(--tint-low); }
+[data-level="moderate"] { --st: var(--st-moderate); --tint: var(--tint-moderate); }
+[data-level="high"] { --st: var(--st-high); --tint: var(--tint-high); }
+[data-level="critical"] { --st: var(--st-critical); --tint: var(--tint-critical); }

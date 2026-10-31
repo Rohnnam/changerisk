@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>ChangeRisk</title>
+  <link rel="icon" href="img/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/report.css">
+  <link rel="stylesheet" href="css/diff.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to the report</a>
+
+  <header class="bar" role="banner">
+    <div class="bar-inner">
+      <a class="wordmark" href="#/" aria-label="ChangeRisk, home">
+        <svg class="wordmark-mark" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <rect x="1" y="3" width="11" height="3.5" fill="currentColor"/>
+          <rect x="1" y="8.25" width="18" height="3.5" fill="currentColor"/>
+          <rect x="1" y="13.5" width="7" height="3.5" fill="currentColor"/>
+          <rect x="14" y="2" width="1.8" height="16" fill="var(--bar-notch)"/>
+        </svg>
+        <span class="wordmark-text">ChangeRisk</span>
+      </a>
+      <nav class="tabs" id="nav" aria-label="Sections"></nav>
+      <div class="bar-end" id="bar-end"></div>
+    </div>
+  </header>
+
+  <div class="app" id="app">
+    <section class="toolbar" id="toolbar" aria-label="Run an analysis"></section>
+    <div class="shell">
+      <aside class="rail" id="rail" aria-label="Recent analyses"></aside>
+      <main class="main" id="main" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div class="live" id="live" role="status" aria-live="polite"></div>
+  <div class="tip" id="tip" role="tooltip" hidden></div>
+
+  <noscript><p class="noscript">The dashboard needs JavaScript. The command line works without it: <code>changerisk analyze</code>.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

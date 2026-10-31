@@ -1,0 +1,27 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# changerisk's own report store
+.changerisk/
+
+# generated demo repo
+examples/demo-repo/
+
+# editors and os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# local tooling
+.claude/

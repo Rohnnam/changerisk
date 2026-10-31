@@ -1,0 +1,62 @@
+.diff {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+.diff-table { width: 100%; border-collapse: collapse; table-layout: auto; }
+.diff-table td { padding: 0; vertical-align: top; }
+
+.hunk td {
+  padding: 3px 12px;
+  background: var(--well);
+  color: var(--ink-3);
+  border-block: 1px solid var(--line);
+}
+.hunk:first-child td { border-top: 0; }
+
+.dl .flag { width: 22px; text-align: center; padding-top: 5px; }
+.dl .ln {
+  width: 4ch; min-width: 4ch; padding: 0 8px;
+  text-align: right; color: var(--ink-3);
+  user-select: none; font-variant-numeric: tabular-nums;
+}
+.dl .sign { width: 2ch; text-align: center; user-select: none; color: var(--ink-3); }
+.dl .code { padding-right: 14px; width: 100%; }
+.dl .code code { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: inherit; }
+
+.dl.add { background: var(--add-bg); }
+.dl.add .sign { color: var(--add-mark); font-weight: 600; }
+.dl.del { background: var(--del-bg); }
+.dl.del .sign { color: var(--del-mark); font-weight: 600; }
+
+.dl[data-flagged] .flag { box-shadow: inset 3px 0 0 var(--st); }
+.dl[data-flagged="low"] { --st: var(--st-low); }
+.dl[data-flagged="moderate"] { --st: var(--st-moderate); }
+.dl[data-flagged="high"] { --st: var(--st-high); }
+.dl[data-flagged="critical"] { --st: var(--st-critical); }
+.dl[data-flagged] .code code { font-weight: 600; }
+
+.note td { padding: 2px 10px 8px 56px; background: var(--surface); }
+.note-card {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  padding: 6px 10px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 0.78rem; line-height: 1.4;
+  white-space: normal;
+}
+.note-rule { font-weight: 600; color: var(--ink-3); }
+.note-title { font-weight: 600; }
+.note-detail { color: var(--ink-2); flex: 1 1 18rem; min-width: 0; }
+.diff-trunc { padding: 8px 12px; color: var(--ink-3); font-family: var(--font); border-top: 1px solid var(--line); }
+
+@media (max-width: 560px) {
+  .dl .ln:first-of-type { display: none; }
+  .note td { padding-left: 12px; }
+}

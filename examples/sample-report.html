@@ -1,0 +1,3076 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Critical risk (100) · feature/faster-checkout · ChangeRisk</title>
+  <style>
+/*
+  Design tokens. Graphite and chalk neutrals; colour is reserved for risk.
+  Layout concept: a faceplate band on top, a history rail on the left, and one column of
+  evidence that reads top to bottom (answer, reasons, tests, files).
+*/
+
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --ground: #e9ecee;
+  --surface: #f6f8f9;
+  --well: #e0e5e8;
+  --raised: #ffffff;
+
+  /* ink */
+  --ink: #12171b;
+  --ink-2: #444c53;
+  --ink-3: #66707a;
+  --line: #cfd6db;
+  --line-strong: #aeb8bf;
+  --on-ink: #f6f8f9;
+
+  /* faceplate band */
+  --bar-bg: #12171b;
+  --bar-ink: #f1f4f5;
+  --bar-ink-2: #a9b3ba;
+  --bar-line: #2c353b;
+  --bar-notch: #fab219;
+
+  /* risk levels: fixed, always paired with a shape and a word */
+  --st-low: #0ca30c;
+  --st-moderate: #fab219;
+  --st-high: #ec835a;
+  --st-critical: #d03b3b;
+  --tint-low: color-mix(in oklab, var(--st-low) 20%, var(--surface));
+  --tint-moderate: color-mix(in oklab, var(--st-moderate) 26%, var(--surface));
+  --tint-high: color-mix(in oklab, var(--st-high) 24%, var(--surface));
+  --tint-critical: color-mix(in oklab, var(--st-critical) 18%, var(--surface));
+
+  /* diff */
+  --add-bg: color-mix(in oklab, #2f9e5b 13%, var(--surface));
+  --add-mark: #1f7a45;
+  --del-bg: color-mix(in oklab, #c4453f 12%, var(--surface));
+  --del-mark: #a9362f;
+  --flag-bg: color-mix(in oklab, var(--st-moderate) 12%, var(--surface));
+
+  /* type */
+  --font: Bahnschrift, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-narrow: "Bahnschrift SemiCondensed", Bahnschrift, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, ui-monospace, "Liberation Mono", monospace;
+
+  --fs-xs: 0.72rem;   /* 11.5px: uppercase labels */
+  --fs-sm: 0.78rem;   /* 12.5px */
+  --fs-md: 0.875rem;  /* 14px */
+  --fs-lg: 1rem;
+  --fs-xl: 1.25rem;
+  --fs-2xl: 1.75rem;
+  --fs-hero: 5.5rem;  /* 88px */
+
+  /* space and shape */
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-5: 24px;
+  --gap-6: 32px;
+  --gap-7: 48px;
+  --radius: 3px;
+  --radius-lg: 6px;
+  --rail-w: 252px;
+  --main-w: 60rem;
+  --gutter: max(16px, env(safe-area-inset-left, 0px));
+  --shadow-pop: 0 6px 24px rgba(10, 16, 20, 0.18), 0 0 0 1px var(--line);
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #0f1316;
+    --surface: #171c20;
+    --well: #1f262b;
+    --raised: #1b2125;
+    --ink: #e8edf0;
+    --ink-2: #b2bbc1;
+    --ink-3: #8a949b;
+    --line: #2b343a;
+    --line-strong: #3d4850;
+    --on-ink: #0f1316;
+    --bar-bg: #0a0d0f;
+    --bar-line: #242c31;
+    --add-bg: color-mix(in oklab, #2f9e5b 17%, var(--surface));
+    --add-mark: #5fcf8b;
+    --del-bg: color-mix(in oklab, #c4453f 19%, var(--surface));
+    --del-mark: #f08a83;
+    --tint-low: color-mix(in oklab, var(--st-low) 24%, var(--surface));
+    --tint-moderate: color-mix(in oklab, var(--st-moderate) 24%, var(--surface));
+    --tint-high: color-mix(in oklab, var(--st-high) 26%, var(--surface));
+    --tint-critical: color-mix(in oklab, var(--st-critical) 30%, var(--surface));
+    --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--line);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #0f1316;
+  --surface: #171c20;
+  --well: #1f262b;
+  --raised: #1b2125;
+  --ink: #e8edf0;
+  --ink-2: #b2bbc1;
+  --ink-3: #8a949b;
+  --line: #2b343a;
+  --line-strong: #3d4850;
+  --on-ink: #0f1316;
+  --bar-bg: #0a0d0f;
+  --bar-line: #242c31;
+  --add-bg: color-mix(in oklab, #2f9e5b 17%, var(--surface));
+  --add-mark: #5fcf8b;
+  --del-bg: color-mix(in oklab, #c4453f 19%, var(--surface));
+  --del-mark: #f08a83;
+  --tint-low: color-mix(in oklab, var(--st-low) 24%, var(--surface));
+  --tint-moderate: color-mix(in oklab, var(--st-moderate) 24%, var(--surface));
+  --tint-high: color-mix(in oklab, var(--st-high) 26%, var(--surface));
+  --tint-critical: color-mix(in oklab, var(--st-critical) 30%, var(--surface));
+  --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--line);
+}
+
+/* Level helpers: set --st and --tint from a data attribute, so components stay generic. */
+[data-level="low"] { --st: var(--st-low); --tint: var(--tint-low); }
+[data-level="moderate"] { --st: var(--st-moderate); --tint: var(--tint-moderate); }
+[data-level="high"] { --st: var(--st-high); --tint: var(--tint-high); }
+[data-level="critical"] { --st: var(--st-critical); --tint: var(--tint-critical); }
+
+</style>
+  <style>
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: 72px;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 var(--fs-md) / 1.5 var(--font);
+  font-feature-settings: "kern", "liga";
+  -webkit-font-smoothing: antialiased;
+  overflow-wrap: break-word;
+}
+
+h1, h2, h3, h4, p, ul, ol, dl, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+h1, h2, h3 { text-wrap: balance; font-weight: 600; letter-spacing: 0.005em; }
+p { text-wrap: pretty; }
+
+a { color: inherit; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+
+code, kbd, samp, pre, .mono { font-family: var(--mono); font-size: 0.92em; }
+
+svg { display: block; }
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.bar :focus-visible { outline-color: var(--bar-ink); }
+
+::selection { background: color-mix(in oklab, var(--st-moderate) 45%, transparent); }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: 8px; top: -48px;
+  z-index: 100;
+  padding: 8px 12px;
+  background: var(--ink);
+  color: var(--on-ink);
+  border-radius: var(--radius);
+}
+.skip-link:focus { top: 8px; }
+
+.eyebrow {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.num { font-variant-numeric: tabular-nums; }
+.dim { color: var(--ink-3); }
+.noscript { padding: var(--gap-5); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+</style>
+  <style>
+/* Faceplate band ----------------------------------------------------------- */
+
+.bar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 40;
+  background: var(--bar-bg);
+  color: var(--bar-ink);
+  border-bottom: 1px solid var(--bar-line);
+}
+.bar-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-5);
+  min-height: 48px;
+  padding-inline: max(var(--gutter), env(safe-area-inset-right, 0px));
+  max-width: calc(var(--rail-w) + var(--main-w) + 2 * var(--gap-5) + 2 * var(--gutter));
+  margin-inline: auto;
+}
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--bar-ink);
+}
+.wordmark-text {
+  font-family: var(--font-narrow);
+  font-size: 1.08rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tabs { display: flex; gap: 2px; align-self: stretch; }
+.tab {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--gap-3);
+  color: var(--bar-ink-2);
+  text-decoration: none;
+  font-size: var(--fs-md);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.tab:hover { color: var(--bar-ink); }
+.tab[aria-current="page"] { color: var(--bar-ink); border-bottom-color: var(--bar-notch); }
+.bar-end { margin-left: auto; display: flex; align-items: center; gap: var(--gap-3); }
+.bar-repo {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--bar-ink-2);
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* App shell ---------------------------------------------------------------- */
+
+.app {
+  max-width: calc(var(--rail-w) + var(--main-w) + 2 * var(--gap-5) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: max(var(--gutter), env(safe-area-inset-right, 0px));
+  padding-block: var(--gap-4) var(--gap-7);
+}
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  gap: var(--gap-5);
+  align-items: start;
+  margin-top: var(--gap-4);
+}
+.main { min-width: 0; display: grid; gap: var(--gap-5); outline: none; }
+.rail {
+  position: sticky;
+  top: 64px;
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+  min-width: 0;
+}
+body[data-view="history"] .shell,
+body[data-view="rules"] .shell { grid-template-columns: minmax(0, 1fr); }
+body[data-view="history"] .rail,
+body[data-view="rules"] .rail { display: none; }
+body[data-static] .toolbar,
+body[data-static] .rail { display: none; }
+body[data-static] .shell { grid-template-columns: minmax(0, 1fr); }
+body[data-static] .app { max-width: calc(var(--main-w) + 2 * var(--gutter)); }
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; max-height: none; order: 2; }
+  .bar-repo { display: none; }
+  .bar-inner { gap: var(--gap-3); }
+}
+@media (max-width: 520px) {
+  .wordmark-text { display: none; }
+  .bar-inner { gap: var(--gap-2); }
+  .tab { padding-inline: 8px; }
+  .theme-btn { width: 28px; }
+}
+
+.live { position: absolute; left: -9999px; }
+
+body[data-view="history"] .toolbar,
+body[data-view="rules"] .toolbar { display: none; }
+
+</style>
+  <style>
+/* Buttons ------------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 var(--gap-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  list-style: none;
+}
+.btn::-webkit-details-marker { display: none; }
+.btn:hover:not(:disabled) { border-color: var(--ink); }
+.btn:disabled { opacity: 0.55; }
+.btn-primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.btn-primary:hover:not(:disabled) { background: color-mix(in oklab, var(--ink) 86%, var(--surface)); }
+.btn-quiet { background: transparent; border-color: transparent; color: var(--ink-2); padding-inline: 6px; }
+.btn-quiet:hover:not(:disabled) { color: var(--ink); border-color: var(--line-strong); }
+.icon { flex: none; }
+.btn .icon:last-child:not(:first-child) { margin-left: -2px; }
+
+/* Form controls ------------------------------------------------------------- */
+
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > label,
+.field > .label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+select,
+input[type="search"],
+input[type="text"] {
+  min-height: 32px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background-color: var(--raised);
+  color: var(--ink);
+  padding: 0 10px;
+  font-size: 0.82rem;
+  min-width: 0;
+}
+select {
+  appearance: none;
+  padding-right: 30px;
+  max-width: 100%;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-2) 50%),
+    linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 14px, calc(100% - 10px) 14px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+select:disabled { opacity: 0.5; }
+select:hover:not(:disabled), input[type="search"]:hover { border-color: var(--ink); }
+
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--ink-2); cursor: pointer; }
+input[type="checkbox"] { accent-color: var(--ink); width: 15px; height: 15px; margin: 0; }
+input[type="radio"] { accent-color: var(--ink); }
+
+.segmented { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--raised); overflow: hidden; }
+.seg { position: relative; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span { display: block; padding: 0 12px; line-height: 30px; font-size: 0.82rem; color: var(--ink-2); white-space: nowrap; }
+.seg + .seg span { border-left: 1px solid var(--line); }
+.seg input:checked + span { background: var(--ink); color: var(--on-ink); }
+.seg input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: -3px; }
+
+/* Toolbar -------------------------------------------------------------------- */
+
+.toolbar {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--gap-3) var(--gap-4);
+}
+.toolbar-summary { display: none; }
+.toolbar-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--gap-3) var(--gap-3); }
+.toolbar-form .field select { min-width: 11rem; }
+.field-join { align-self: end; padding-bottom: 5px; color: var(--ink-3); }
+.toolbar-form .btn-primary { margin-left: auto; min-width: 104px; }
+.toolbar-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--gap-1) var(--gap-4); margin-top: var(--gap-3); padding-top: var(--gap-2); border-top: 1px solid var(--line); }
+.toolbar-hint { font-size: var(--fs-sm); color: var(--ink-3); max-width: 62ch; }
+.toolbar-foot .check { font-size: var(--fs-sm); }
+.form-error {
+  display: flex; gap: 8px; align-items: center;
+  margin-top: var(--gap-2);
+  padding: 8px 12px;
+  background: var(--tint-critical);
+  border: 1px solid var(--st-critical);
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+}
+.form-error .icon { color: var(--st-critical); }
+
+@media (max-width: 700px) {
+  .toolbar-summary {
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 600; font-size: 0.9rem; padding: 2px 0;
+  }
+  .toolbar-details[open] > .toolbar-summary { margin-bottom: var(--gap-3); }
+  .toolbar-details[open] > .toolbar-summary .icon { transform: rotate(180deg); }
+  .toolbar-form .field { flex: 1 1 100%; }
+  .toolbar-form .field select { width: 100%; }
+  .field-join { display: none; }
+  .toolbar-form .btn-primary { margin-left: 0; flex: 1 1 100%; }
+}
+
+/* Theme switch ---------------------------------------------------------------- */
+
+.theme-switch { display: inline-flex; border: 1px solid var(--bar-line); border-radius: var(--radius); overflow: hidden; }
+.theme-btn { display: grid; place-items: center; width: 30px; height: 28px; background: transparent; border: 0; color: var(--bar-ink-2); }
+.theme-btn + .theme-btn { border-left: 1px solid var(--bar-line); }
+.theme-btn:hover { color: var(--bar-ink); }
+.theme-btn[aria-pressed="true"] { background: var(--bar-ink); color: var(--bar-bg); }
+
+/* Panels ----------------------------------------------------------------------- */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--gap-5);
+  min-width: 0;
+}
+.panel-head { margin-bottom: var(--gap-4); }
+.panel-head h2, .panel-head .h2, .h2 { font-size: var(--fs-xl); line-height: 1.25; }
+.panel-sub { margin-top: 4px; color: var(--ink-2); font-size: 0.82rem; max-width: 70ch; }
+.panel-head-split { display: flex; justify-content: space-between; gap: var(--gap-4); align-items: flex-start; flex-wrap: wrap; }
+.stack { display: grid; gap: var(--gap-5); }
+.duo { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--gap-5); align-items: start; }
+.duo > :only-child { grid-column: 1 / -1; }
+@media (max-width: 760px) { .duo { grid-template-columns: minmax(0, 1fr); } }
+.empty { color: var(--ink-2); max-width: 64ch; }
+.empty-state { display: grid; gap: var(--gap-3); justify-items: start; }
+.small { font-size: var(--fs-sm); }
+.nowrap { white-space: nowrap; }
+.is-loading > * { opacity: 0.55; transition: opacity 120ms; }
+
+/* Chips -------------------------------------------------------------------------- */
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--gap-3); }
+.chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 0.8rem;
+}
+.chip:hover { border-color: var(--ink); color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+.chip-n { font-size: var(--fs-xs); opacity: 0.8; }
+
+/* Details / disclosure ------------------------------------------------------------ */
+
+summary { cursor: pointer; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+
+.more > summary,
+.how > summary,
+.twin > summary {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--ink-2); font-size: 0.82rem;
+}
+.more > summary::before,
+.how > summary::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 120ms;
+  margin-right: 2px;
+}
+.more[open] > summary::before,
+.how[open] > summary::before { transform: rotate(45deg); }
+.more > summary:hover, .how > summary:hover, .twin > summary:hover { color: var(--ink); }
+
+/* Menu ------------------------------------------------------------------------------ */
+
+.menu { position: relative; }
+.menu-pop {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20;
+  min-width: 15rem;
+  display: grid;
+  background: var(--raised);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  padding: 4px;
+}
+.menu-item { padding: 8px 10px; border-radius: 2px; text-decoration: none; font-size: 0.82rem; }
+.menu-item:hover { background: var(--well); }
+
+/* Tables ----------------------------------------------------------------------------- */
+
+.table-wrap { overflow-x: auto; }
+.plain-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.plain-table th, .plain-table td { text-align: left; padding: 8px 12px 8px 0; border-top: 1px solid var(--line); vertical-align: top; font-weight: 400; }
+.plain-table thead th { border-top: 0; font-size: var(--fs-xs); letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.plain-table tbody th { font-weight: 500; }
+.plain-table .r { text-align: right; font-variant-numeric: tabular-nums; }
+.twin { margin-top: var(--gap-3); }
+.twin[open] > summary { margin-bottom: var(--gap-2); }
+.level-cell { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Tooltip ------------------------------------------------------------------------------ */
+
+.tip {
+  position: fixed; z-index: 60;
+  left: var(--tip-x, 0); top: var(--tip-y, 0);
+  max-width: 22rem;
+  padding: 8px 10px;
+  background: var(--ink); color: var(--on-ink);
+  border-radius: var(--radius);
+  font-size: var(--fs-sm); line-height: 1.4;
+  pointer-events: none;
+}
+.tip strong { font-weight: 600; }
+.tip-dim { opacity: 0.72; }
+
+/* Shapes ---------------------------------------------------------------------------------- */
+
+.shape { flex: none; }
+.shape polygon, .shape circle {
+  fill: var(--st);
+  stroke: color-mix(in oklab, var(--st) 55%, var(--ink));
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+}
+
+/* Rail -------------------------------------------------------------------------------------- */
+
+.rail-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 var(--gap-1) var(--gap-2); }
+.rail-list { display: grid; gap: 2px; }
+.rail-li { position: relative; display: flex; align-items: center; border-radius: var(--radius); }
+.rail-li:hover { background: color-mix(in oklab, var(--well) 70%, transparent); }
+.rail-li[data-selected="true"] { background: var(--surface); box-shadow: 0 0 0 1px var(--ink); }
+.rail-item { flex: 1; min-width: 0; display: grid; grid-template-columns: 3.1rem minmax(0, 1fr); gap: var(--gap-2); align-items: center; padding: 8px 10px; text-decoration: none; }
+.rail-score { display: inline-flex; align-items: center; gap: 6px; }
+.rail-num { font-size: 1.25rem; font-weight: 500; line-height: 1; }
+.rail-meta { display: grid; min-width: 0; }
+.rail-ref { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; }
+.rail-sub { font-size: var(--fs-sm); color: var(--ink-3); }
+.rail-failed { color: var(--ink-2); }
+.rail-del { opacity: 0; width: 24px; height: 24px; margin-right: 6px; display: grid; place-items: center; background: transparent; border: 0; color: var(--ink-3); border-radius: 2px; }
+.rail-li:hover .rail-del, .rail-del:focus-visible { opacity: 1; }
+.rail-del:hover { color: var(--ink); background: var(--well); }
+.rail-confirm { display: flex; gap: 4px; padding-right: 6px; }
+.mini { font-size: var(--fs-sm); padding: 3px 8px; border: 1px solid var(--line-strong); background: var(--raised); border-radius: var(--radius); }
+.mini.danger { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.rail-empty { padding: var(--gap-3); color: var(--ink-2); font-size: 0.82rem; }
+@media (hover: none) { .rail-del { opacity: 1; } }
+
+</style>
+  <style>
+/* Change header -------------------------------------------------------------------- */
+
+.change { display: grid; gap: var(--gap-2); }
+.change-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--gap-2) var(--gap-4); }
+.change-refs {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-size: var(--fs-xl); font-weight: 500; line-height: 1.2;
+}
+.ref {
+  font-family: var(--mono); font-size: 0.9rem; font-weight: 500;
+  padding: 3px 9px;
+  background: var(--well);
+  border-radius: var(--radius);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.ref-plain { background: transparent; border: 1px solid var(--line-strong); }
+.ref-join { color: var(--ink-3); font-weight: 400; }
+.sha { color: var(--ink-3); font-size: 0.78rem; margin-left: 4px; }
+.change-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--ink-2); font-size: 0.82rem; }
+.sep { color: var(--line-strong); }
+.delta .add { color: var(--add-mark); }
+.delta .del { color: var(--del-mark); }
+.change-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Verdict ---------------------------------------------------------------------------- */
+
+.verdict {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "score body"
+    "ruler ruler"
+    "how   how"
+    "notes notes";
+  gap: var(--gap-5) var(--gap-6);
+  padding: var(--gap-5) var(--gap-5) var(--gap-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.verdict-score { grid-area: score; align-self: start; }
+.score-num {
+  font-size: var(--fs-hero);
+  line-height: 0.88;
+  font-weight: 300;
+  letter-spacing: -0.015em;
+  font-variant-numeric: proportional-nums;
+}
+.score-of { margin-top: 10px; color: var(--ink-3); font-size: var(--fs-sm); }
+.verdict-body { grid-area: body; min-width: 0; align-self: center; }
+.verdict-level { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: var(--fs-xl); }
+.gate-chip {
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 2px; border: 1px solid var(--line-strong); color: var(--ink-2);
+}
+.gate-chip[data-state="failed"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.gate-chip[data-state="passed"] { color: var(--ink); border-color: var(--ink-2); }
+.verdict-text { margin-top: var(--gap-2); font-size: var(--fs-lg); line-height: 1.5; max-width: 62ch; }
+.verdict-next { margin-top: var(--gap-2); color: var(--ink-2); max-width: 62ch; }
+.verdict-next .eyebrow { margin-right: 10px; }
+.verdict-ruler { grid-area: ruler; padding-inline: 4px; }
+.how { grid-area: how; border-top: 1px solid var(--line); padding-top: var(--gap-3); }
+.how-body { margin-top: var(--gap-2); display: grid; gap: var(--gap-2); color: var(--ink-2); font-size: 0.82rem; max-width: 70ch; }
+.how-body code { background: var(--well); padding: 1px 6px; border-radius: 2px; }
+.floor { color: var(--ink); font-weight: 500; }
+.notes { grid-area: notes; display: grid; gap: 4px; color: var(--ink-2); font-size: var(--fs-sm); }
+.notes li::before { content: "Note \00b7  "; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--fs-xs); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .verdict { grid-template-columns: minmax(0, 1fr); grid-template-areas: "score" "body" "ruler" "how" "notes"; padding: var(--gap-4); }
+  .score-num { font-size: 4.25rem; }
+}
+
+/* Ruler ------------------------------------------------------------------------------- */
+
+.ruler { position: relative; margin: 0; padding-top: 32px; }
+.ruler-bands { display: flex; height: 12px; }
+.band { flex: 0 0 25%; position: relative; }
+.band + .band::before { content: ""; position: absolute; left: -1px; top: 0; bottom: 0; width: 2px; background: var(--surface); z-index: 2; }
+.band-track { position: relative; height: 100%; background: var(--tint); overflow: hidden; }
+.band-fill { position: absolute; inset: 0 auto 0 0; width: var(--fill); background: var(--st); animation: fill-grow var(--dur, 0ms) linear var(--delay, 0ms) both; }
+
+.ruler-flag { position: absolute; top: 0; left: var(--at); transform: translateX(-50%); z-index: 3; animation: sweep var(--sweep, 0ms) linear both; }
+.ruler-flag-label {
+  position: relative; display: block;
+  padding: 1px 8px; min-width: 28px; text-align: center;
+  background: var(--ink); color: var(--on-ink);
+  font-size: var(--fs-sm); font-weight: 600; line-height: 18px;
+  border-radius: 2px;
+}
+.ruler-flag-label::after { content: ""; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--ink); border-bottom: 0; }
+.ruler-marker { position: absolute; top: 26px; left: var(--at); width: 2px; height: 28px; margin-left: -1px; background: var(--ink); z-index: 3; animation: sweep var(--sweep, 0ms) linear both; }
+
+.ruler-ticks {
+  height: 9px; margin-top: 2px;
+  background-image:
+    repeating-linear-gradient(to right, var(--line-strong) 0 1px, transparent 1px 5%),
+    repeating-linear-gradient(to right, var(--ink-3) 0 1px, transparent 1px 25%);
+  background-size: 100% 5px, 100% 9px;
+  background-repeat: no-repeat;
+  box-shadow: inset -1px 0 0 var(--ink-3);
+}
+.ruler-scale { position: relative; height: 22px; margin-top: 4px; font-size: var(--fs-xs); }
+.scale-num, .scale-name { position: absolute; top: 0; left: var(--at); transform: translateX(-50%); white-space: nowrap; }
+.scale-num { color: var(--ink-3); }
+.scale-num[data-edge="start"] { transform: none; }
+.scale-num[data-edge="end"] { transform: translateX(-100%); }
+.scale-name { display: inline-flex; align-items: center; gap: 6px; top: 16px; letter-spacing: 0.09em; text-transform: uppercase; font-weight: 600; color: var(--ink-2); }
+.ruler-scale { height: 38px; }
+.ruler-gate { position: relative; height: 26px; margin-top: 6px; }
+.ruler-gate-notch { position: absolute; left: var(--at); top: -10px; transform: translateX(-50%); border: 6px solid transparent; border-top: 0; border-bottom: 8px solid var(--ink); }
+.ruler-gate-label { position: absolute; top: 2px; font-size: var(--fs-sm); color: var(--ink-2); white-space: nowrap; }
+.ruler-gate[data-side="right"] .ruler-gate-label { left: calc(var(--at) + 2px); }
+.ruler-gate[data-side="left"] .ruler-gate-label { right: calc(100% - var(--at) + 2px); }
+.ruler-gate-off .ruler-gate-label { left: 0; }
+
+@keyframes fill-grow { from { width: 0; } to { width: var(--fill); } }
+@keyframes sweep { from { left: 0; } to { left: var(--at); } }
+
+@media (max-width: 560px) {
+  .scale-name svg { display: none; }
+  .scale-name { letter-spacing: 0.04em; }
+  .scale-num[data-edge="mid"]:not([style*="50%"]) { display: none; }
+}
+
+/* Reasons ---------------------------------------------------------------------------------- */
+
+.reason-list { display: grid; }
+.reason {
+  display: grid; grid-template-columns: 2.1rem minmax(0, 1fr); gap: 0 var(--gap-2);
+  padding: var(--gap-4) 0;
+  border-top: 1px solid var(--line);
+}
+.reason:first-child { border-top: 0; padding-top: var(--gap-1); }
+.reason-rank { padding-top: 3px; color: var(--ink-3); font-size: 0.82rem; }
+.reason-main { min-width: 0; }
+.reason-head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap-3) var(--gap-4); flex-wrap: wrap; }
+.reason-title { display: flex; align-items: center; gap: 9px; font-size: var(--fs-lg); line-height: 1.3; }
+.reason-name { min-width: 0; }
+.sev-word {
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-2); padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 2px;
+}
+.reason-pts { display: flex; align-items: center; gap: 10px; }
+.pts { font-weight: 600; font-size: 0.95rem; }
+.share { width: 72px; height: 6px; background: var(--tint); }
+.share i { display: block; height: 100%; width: var(--w); background: var(--st); }
+.reason-detail { margin-top: 6px; max-width: 72ch; color: var(--ink); }
+.evidence { display: grid; gap: 2px; margin-top: var(--gap-2); }
+.evidence-rest { margin-top: var(--gap-3); }
+.ev {
+  display: grid; grid-template-columns: minmax(7ch, 26ch) 1.2ch minmax(0, 1fr); gap: 0 10px; align-items: baseline;
+  padding: 3px 10px;
+  background: var(--well); border-radius: 2px;
+  font-family: var(--mono); font-size: 0.78rem; line-height: 1.55;
+}
+.ev-loc { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-sign { text-align: center; font-weight: 600; color: var(--add-mark); }
+.ev[data-side="old"] .ev-sign { color: var(--del-mark); }
+.ev-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: inherit; }
+.more { margin-top: var(--gap-3); }
+.more-body { margin-top: var(--gap-2); display: grid; gap: var(--gap-2); max-width: 72ch; color: var(--ink-2); font-size: 0.85rem; }
+.tests { display: grid; gap: 4px; padding-left: 1.1rem; list-style: square; }
+.tests li::marker { color: var(--ink-3); }
+.rule-id { font-size: var(--fs-sm); color: var(--ink-3); }
+.more-btn { margin-top: var(--gap-2); }
+@media (max-width: 560px) {
+  .reason { grid-template-columns: minmax(0, 1fr); }
+  .reason-rank { display: none; }
+  .ev { grid-template-columns: 1.2ch minmax(0, 1fr); }
+  .ev-loc { grid-column: 1 / -1; }
+}
+
+/* Plan ---------------------------------------------------------------------------------------- */
+
+.plan-group + .plan-group { margin-top: var(--gap-4); }
+.plan-group-title { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: var(--gap-1); }
+.plan-hint { font-weight: 400; letter-spacing: 0; text-transform: none; font-size: var(--fs-sm); }
+.plan-list { display: grid; }
+.plan-item { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); align-items: start; }
+.plan-item:first-child { border-top: 0; }
+.plan-item input { margin-top: 3px; }
+.plan-item label { cursor: pointer; max-width: 76ch; }
+.plan-item input:checked + label { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.plan-rules { margin-left: 10px; font-size: var(--fs-xs); color: var(--ink-3); white-space: nowrap; }
+.plan .btn { margin-top: var(--gap-3); }
+.progress { display: flex; align-items: center; gap: 10px; margin-top: var(--gap-2); font-size: var(--fs-sm); color: var(--ink-2); }
+.progress-track { width: 140px; height: 4px; background: var(--well); }
+.progress-track i { display: block; height: 100%; width: var(--w); background: var(--ink); transition: width 160ms var(--ease); }
+
+/* Charts ------------------------------------------------------------------------------------------ */
+
+:root { --viz: #3c5a70; --viz-wash: color-mix(in oklab, var(--viz) 10%, transparent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --viz: #7fa3bd; } }
+:root[data-theme="dark"] { --viz: #7fa3bd; }
+
+.chart-panel { container-type: inline-size; }
+.cats { display: grid; gap: 10px; }
+.cat { display: grid; gap: 3px; padding: 2px 4px; border-radius: 2px; }
+.cat:hover { background: var(--well); }
+.cat-label { font-size: 0.82rem; color: var(--ink-2); }
+.cat-bar-area { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cat-bar { flex: none; height: 10px; width: calc((100% - 3.2rem) * var(--p)); min-width: 3px; background: var(--viz); border-radius: 0 4px 4px 0; }
+.cat-value { font-size: 0.82rem; font-weight: 500; }
+@container (min-width: 30rem) {
+  .cats { gap: 6px; }
+  .cat { grid-template-columns: 9rem minmax(0, 1fr); gap: var(--gap-3); align-items: center; padding: 3px 4px; }
+}
+
+.trend { width: 100%; min-height: 188px; }
+.trend-empty { min-height: 0; }
+.trend-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.trend-svg .grid { stroke: var(--line); stroke-width: 1; }
+.trend-svg .axis { stroke: var(--line-strong); stroke-width: 1; }
+.trend-svg .tick, .trend-svg .gate-text { fill: var(--ink-3); font-size: 11px; font-family: var(--font); }
+.trend-svg .gate-line { stroke: var(--ink-2); stroke-width: 1; }
+.trend-svg .area { fill: var(--viz-wash); }
+.trend-svg .line { fill: none; stroke: var(--viz); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trend-svg .crosshair { stroke: var(--line-strong); stroke-width: 1; }
+.trend-svg .pt { cursor: pointer; outline: none; }
+.trend-svg .hit { fill: transparent; }
+.trend-svg .dot { fill: var(--viz); stroke: var(--surface); stroke-width: 2; }
+.trend-svg .pt.is-selected .dot { fill: var(--ink); }
+.trend-svg .pt:focus-visible .dot { stroke: var(--ink); }
+.trend-svg .end-label { fill: var(--ink); font-size: 12px; font-weight: 600; font-family: var(--font); }
+
+/* Files ----------------------------------------------------------------------------------------------- */
+
+.file-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.file-table thead th { text-align: left; padding: 0 10px 8px 0; font-size: var(--fs-xs); letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.file-table .col-status { width: 36px; }
+.file-table .col-size { width: 190px; }
+.file-table .col-risk { width: 96px; text-align: right; }
+.file-row > * { padding: 7px 10px 7px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+.file-group:first-of-type .file-row > * { border-top-color: var(--line-strong); }
+.file-row:hover > * { background: color-mix(in oklab, var(--well) 55%, transparent); }
+.col-path { text-align: left; font-weight: 400; min-width: 0; }
+.status {
+  display: inline-grid; place-items: center; width: 20px; height: 20px;
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 600; color: var(--ink-2);
+  border: 1px solid var(--line-strong); border-radius: 2px;
+}
+.status[data-status="deleted"] { color: var(--del-mark); border-color: var(--del-mark); }
+.status[data-status="added"] { color: var(--add-mark); border-color: var(--add-mark); }
+.path-btn { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left; background: transparent; border: 0; padding: 0; color: inherit; min-width: 0; }
+.path-btn .icon { align-self: center; transition: transform 120ms; color: var(--ink-3); }
+.path-btn[aria-expanded="true"] .icon { transform: rotate(180deg); }
+.path { font-family: var(--mono); font-size: 0.8rem; overflow-wrap: anywhere; min-width: 0; }
+.path-dir { color: var(--ink-3); }
+.path-name { font-weight: 600; }
+.was { font-size: var(--fs-sm); }
+.size { display: flex; align-items: center; gap: 10px; }
+.sizebar { display: flex; gap: 2px; width: 84px; height: 6px; flex: none; }
+.sizebar .a { flex: 0 0 var(--add); background: var(--add-mark); min-width: 0; }
+.sizebar .d { flex: 0 0 var(--del); background: var(--del-mark); min-width: 0; }
+.size .delta { font-size: 0.78rem; white-space: nowrap; }
+.risk-cell { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; justify-content: flex-end; }
+.col-risk { text-align: right; }
+.file-detail > td { padding: 0 0 var(--gap-4); }
+.file-findings { display: grid; gap: 4px; padding: var(--gap-2) 0 var(--gap-3); font-size: 0.82rem; }
+.file-findings li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.file-finding-link { font-weight: 600; }
+.diff-empty { color: var(--ink-2); font-size: 0.82rem; padding: var(--gap-2) 0; }
+.colophon { color: var(--ink-3); font-size: var(--fs-sm); padding-block: var(--gap-3); }
+.commits > summary { display: flex; }
+.commits h2 { font-size: var(--fs-lg); }
+.commit-list { margin-top: var(--gap-3); display: grid; }
+.commit { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 0.85rem; }
+.commit .sha { margin: 0; }
+.commit-meta { font-size: var(--fs-sm); }
+@media (max-width: 640px) {
+  .commit { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .file-table .col-size { display: none; }
+  .file-table .size { display: none; }
+  .file-row > td:nth-child(3) { display: none; }
+}
+
+/* Rules ----------------------------------------------------------------------------------------------- */
+
+.filters { display: flex; flex-wrap: wrap; gap: var(--gap-3); margin-bottom: var(--gap-3); }
+.filters .field { min-width: 14rem; }
+.rule-list { display: grid; margin-top: var(--gap-2); }
+.rule-row { border-top: 1px solid var(--line); }
+.rule-row > summary { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr) 9rem 7rem auto; gap: 12px; align-items: center; padding: 9px 0; font-size: 0.85rem; }
+.rule-row > summary:hover { background: color-mix(in oklab, var(--well) 55%, transparent); }
+.rule-id { font-weight: 600; font-size: 0.8rem; }
+.rule-name { font-weight: 500; }
+.rule-sev { display: inline-flex; align-items: center; gap: 7px; }
+.rule-off { font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 2px; color: var(--ink-2); }
+.rule-row[data-enabled="false"] .rule-name { color: var(--ink-3); }
+.rule-body { display: grid; gap: var(--gap-2); padding: 4px 0 var(--gap-4) 4.6rem; max-width: 80ch; color: var(--ink-2); font-size: 0.85rem; }
+.rule-summary { color: var(--ink); }
+.options { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; font-size: 0.78rem; }
+.options dt { color: var(--ink-3); }
+.options dd { margin: 0; }
+@media (max-width: 760px) {
+  .rule-row > summary { grid-template-columns: 4.2rem minmax(0, 1fr); }
+  .rule-area, .rule-sev { display: none; }
+  .rule-body { padding-left: 0; }
+}
+
+</style>
+  <style>
+.diff {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+.diff-table { width: 100%; border-collapse: collapse; table-layout: auto; }
+.diff-table td { padding: 0; vertical-align: top; }
+
+.hunk td {
+  padding: 3px 12px;
+  background: var(--well);
+  color: var(--ink-3);
+  border-block: 1px solid var(--line);
+}
+.hunk:first-child td { border-top: 0; }
+
+.dl .flag { width: 22px; text-align: center; padding-top: 5px; }
+.dl .ln {
+  width: 4ch; min-width: 4ch; padding: 0 8px;
+  text-align: right; color: var(--ink-3);
+  user-select: none; font-variant-numeric: tabular-nums;
+}
+.dl .sign { width: 2ch; text-align: center; user-select: none; color: var(--ink-3); }
+.dl .code { padding-right: 14px; width: 100%; }
+.dl .code code { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: inherit; }
+
+.dl.add { background: var(--add-bg); }
+.dl.add .sign { color: var(--add-mark); font-weight: 600; }
+.dl.del { background: var(--del-bg); }
+.dl.del .sign { color: var(--del-mark); font-weight: 600; }
+
+.dl[data-flagged] .flag { box-shadow: inset 3px 0 0 var(--st); }
+.dl[data-flagged="low"] { --st: var(--st-low); }
+.dl[data-flagged="moderate"] { --st: var(--st-moderate); }
+.dl[data-flagged="high"] { --st: var(--st-high); }
+.dl[data-flagged="critical"] { --st: var(--st-critical); }
+.dl[data-flagged] .code code { font-weight: 600; }
+
+.note td { padding: 2px 10px 8px 56px; background: var(--surface); }
+.note-card {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  padding: 6px 10px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 0.78rem; line-height: 1.4;
+  white-space: normal;
+}
+.note-rule { font-weight: 600; color: var(--ink-3); }
+.note-title { font-weight: 600; }
+.note-detail { color: var(--ink-2); flex: 1 1 18rem; min-width: 0; }
+.diff-trunc { padding: 8px 12px; color: var(--ink-3); font-family: var(--font); border-top: 1px solid var(--line); }
+
+@media (max-width: 560px) {
+  .dl .ln:first-of-type { display: none; }
+  .note td { padding-left: 12px; }
+}
+
+</style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to the report</a>
+
+  <header class="bar" role="banner">
+    <div class="bar-inner">
+      <a class="wordmark" href="#/" aria-label="ChangeRisk, home">
+        <svg class="wordmark-mark" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <rect x="1" y="3" width="11" height="3.5" fill="currentColor"/>
+          <rect x="1" y="8.25" width="18" height="3.5" fill="currentColor"/>
+          <rect x="1" y="13.5" width="7" height="3.5" fill="currentColor"/>
+          <rect x="14" y="2" width="1.8" height="16" fill="var(--bar-notch)"/>
+        </svg>
+        <span class="wordmark-text">ChangeRisk</span>
+      </a>
+      <nav class="tabs" id="nav" aria-label="Sections"></nav>
+      <div class="bar-end" id="bar-end"></div>
+    </div>
+  </header>
+
+  <div class="app" id="app">
+    <section class="toolbar" id="toolbar" aria-label="Run an analysis"></section>
+    <div class="shell">
+      <aside class="rail" id="rail" aria-label="Recent analyses"></aside>
+      <main class="main" id="main" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div class="live" id="live" role="status" aria-live="polite"></div>
+  <div class="tip" id="tip" role="tooltip" hidden></div>
+
+  <noscript><p class="noscript">The dashboard needs JavaScript. The command line works without it: <code>changerisk analyze</code>.</p></noscript>
+  <script>
+window.__CHANGERISK__ = {"static": true, "report": {"schema": "changerisk.report/1", "id": null, "tool_version": "0.1.0", "generated_at": "2026-10-31T04:52:04+00:00", "repo": "demo-repo", "range": {"mode": "range", "base": "main", "head": "feature/faster-checkout", "base_sha": "8df1760118309a28867b043ddf8429fc14afbf17", "head_sha": "52c840a6d38ea8f6ea9586c60732d6cca0f5168c", "merge_base": "8df1760118309a28867b043ddf8429fc14afbf17"}, "stats": {"files": 12, "additions": 35, "deletions": 67, "commits": 8}, "score": 100, "points": 337.2, "level": "critical", "floor_note": null, "verdict": "Do not merge until the critical findings are dealt with and the test plan is done. The main reasons: safety setting flipped, workflow permissions or triggers widened and possible secret committed, plus 21 more.", "recommendation": "Hold the merge. Resolve the critical findings, then run this check again.", "gate": {"fail_on": "never", "failed": false, "reason": "The gate is off."}, "findings": [{"id": "f1", "rule": "CFG002", "scope": "file", "category": "config", "title": "Safety setting flipped", "severity": "critical", "points": 30.0, "detail": "config/production.yml: debug was switched on; tls_verify was switched off; allowed_origins now accepts everything ('*').", "paths": ["config/production.yml"], "evidence": [{"path": "config/production.yml", "line": 3, "text": "debug: true", "side": "new"}, {"path": "config/production.yml", "line": 14, "text": "tls_verify: false", "side": "new"}, {"path": "config/production.yml", "line": 15, "text": "allowed_origins: [\"*\"]", "side": "new"}], "why": "These switches exist to protect users and data. Flipping one is easy to do for a quick local test and easy to forget about in a merge.", "test_focus": ["Confirm debug stays off in every environment that serves real traffic, including config/production.yml", "Trigger an error on a deployed instance and check no stack trace or settings page is shown", "Exercise the protected path (TLS handshake, login, CSRF check) and confirm it still rejects bad input", "Confirm the switch is still on in every environment that reads config/production.yml", "Send a cross-origin or foreign-host request from an origin that is not listed and confirm it is rejected"]}, {"id": "f2", "rule": "CI003", "scope": "file", "category": "pipeline", "title": "Workflow permissions or triggers widened", "severity": "critical", "points": 30.0, "detail": ".github/workflows/ci.yml: pull_request_target trigger; it checks out the pull request's code.", "paths": [".github/workflows/ci.yml"], "evidence": [{"path": ".github/workflows/ci.yml", "line": 3, "text": "pull_request_target:", "side": "new"}], "why": "Workflows run with a token and secrets. Wider permissions, triggers that run untrusted pull request code with secrets, and unpinned third-party actions are how pipelines get used against their owners.", "test_focus": ["Read the permissions block and remove anything the job does not need", "Pin third-party actions to a commit SHA"]}, {"id": "f3", "rule": "SEC001", "scope": "file", "category": "security", "title": "Possible secret committed", "severity": "critical", "points": 30.0, "detail": ".env.production contains what looks like Stripe live key and AWS access key id (2 lines). The value is masked here.", "paths": [".env.production"], "evidence": [{"path": ".env.production", "line": 1, "text": "STRIPE_SECRET_KEY=\u003chidden\u003e", "side": "new"}, {"path": ".env.production", "line": 2, "text": "AWS_ACCESS_KEY_ID=\u003chidden\u003e", "side": "new"}], "why": "A committed credential is exposed to everyone with read access to the repository, now and in every clone, and stays in history after it is removed.", "test_focus": ["Treat the credential as leaked: revoke and rotate it before merging", "Load the value from the environment or a secret store, and scan history with a secret scanner"]}, {"id": "f4", "rule": "CFG003", "scope": "file", "category": "config", "title": "Operational limit changed sharply", "severity": "high", "points": 16.0, "detail": "config/production.yml: request_timeout rose 12x (from 10 to 120); pool_size rose 10x (from 40 to 400); statement_timeout rose 10x (from 30s to 5m).", "paths": ["config/production.yml"], "evidence": [{"path": "config/production.yml", "line": 5, "text": "request_timeout: 120", "side": "new"}, {"path": "config/production.yml", "line": 9, "text": "pool_size: 400", "side": "new"}, {"path": "config/production.yml", "line": 12, "text": "statement_timeout: 5m", "side": "new"}], "why": "Limits tune how the system behaves under stress. A tenfold timeout hides slow dependencies, a pool that is too large exhausts the database, and a value of zero often means unlimited.", "test_focus": ["Load test with the new values in config/production.yml and watch connection counts, queue depth and latency", "Fail a dependency on purpose (slow it down, drop it) and check how the service reacts"]}, {"id": "f5", "rule": "CFG004", "scope": "file", "category": "config", "title": "Environment file tracked", "severity": "high", "points": 16.0, "detail": ".env.production was added in the repository. It defines STRIPE_SECRET_KEY, AWS_ACCESS_KEY_ID and DATABASE_URL.", "paths": [".env.production"], "evidence": [{"path": ".env.production", "line": 1, "text": "STRIPE_SECRET_KEY = \u003chidden\u003e", "side": "new"}, {"path": ".env.production", "line": 2, "text": "AWS_ACCESS_KEY_ID = \u003chidden\u003e", "side": "new"}, {"path": ".env.production", "line": 3, "text": "DATABASE_URL = \u003chidden\u003e", "side": "new"}], "why": "Environment files usually hold credentials. Once one is committed, its values live in history even after the file is deleted.", "test_focus": ["Rotate any credential that appeared in the file", "Move the values to a secret store and commit only a .env.example"]}, {"id": "f6", "rule": "CI002", "scope": "file", "category": "pipeline", "title": "Pipeline checks weakened", "severity": "high", "points": 16.0, "detail": ".github/workflows/ci.yml: a command's failure is swallowed (|| true).", "paths": [".github/workflows/ci.yml"], "evidence": [{"path": ".github/workflows/ci.yml", "line": 17, "text": "- run: pytest || true", "side": "new"}], "why": "A pipeline that cannot fail is decoration. These edits keep the build green while the code underneath gets less checked.", "test_focus": ["Push a commit with a failing test and confirm the pipeline fails", "Compare the list of steps before and after and account for each missing one"]}, {"id": "f7", "rule": "DB002", "scope": "file", "category": "database", "title": "Destructive schema statement", "severity": "high", "points": 16.0, "detail": "db/migrations/0005_drop_legacy_ledger.sql drops a table, column or index; adds a NOT NULL column with no default.", "paths": ["db/migrations/0005_drop_legacy_ledger.sql"], "evidence": [{"path": "db/migrations/0005_drop_legacy_ledger.sql", "line": 1, "text": "DROP TABLE legacy_ledger;", "side": "new"}, {"path": "db/migrations/0005_drop_legacy_ledger.sql", "line": 2, "text": "ALTER TABLE ledger ADD COLUMN tenant_id bigint NOT NULL;", "side": "new"}], "why": "These statements lose data, lock large tables, or break the version of the application that is still running during the deploy.", "test_focus": ["Take a backup and restore it into a scratch database before running db/migrations/0005_drop_legacy_ledger.sql", "Check that no running code still reads the dropped or renamed column", "Use expand-and-contract: add the new shape, migrate readers, then remove the old one"]}, {"id": "f8", "rule": "DB003", "scope": "file", "category": "database", "title": "Applied migration edited", "severity": "high", "points": 16.0, "detail": "db/migrations/0003_add_ledger_memo.sql was edited after it already existed. Databases that ran the old version will not run this one.", "paths": ["db/migrations/0003_add_ledger_memo.sql"], "evidence": [{"path": "db/migrations/0003_add_ledger_memo.sql", "line": 1, "text": "ALTER TABLE ledger ADD COLUMN memo varchar(64);", "side": "new"}], "why": "Databases that already ran the old version will not run it again, so environments drift apart silently and the history no longer describes any real database.", "test_focus": ["Put the change in a new migration instead", "Compare the schema of a freshly migrated database with one migrated before this change"]}, {"id": "f9", "rule": "SEC003", "scope": "file", "category": "security", "title": "Certificate or signature checks disabled", "severity": "high", "points": 16.0, "detail": "src/ledgerline/payments/client.py turns off certificate or host verification (1 place).", "paths": ["src/ledgerline/payments/client.py"], "evidence": [{"path": "src/ledgerline/payments/client.py", "line": 27, "text": "verify=False,", "side": "new"}], "why": "Turning verification off lets anyone on the network path impersonate the server. It is usually added to get past a local certificate error and then ships.", "test_focus": ["Connect with an untrusted certificate and confirm the call fails", "Fix the certificate chain instead of disabling the check"]}, {"id": "f10", "rule": "TST001", "scope": "file", "category": "tests", "title": "Test file deleted", "severity": "high", "points": 16.0, "detail": "tests/test_refunds.py was deleted, removing 10 test cases.", "paths": ["tests/test_refunds.py"], "evidence": [{"path": "tests/test_refunds.py", "line": 4, "text": "test_split_even", "side": "old"}, {"path": "tests/test_refunds.py", "line": 8, "text": "test_split_uneven", "side": "old"}, {"path": "tests/test_refunds.py", "line": 12, "text": "test_split_single", "side": "old"}, {"path": "tests/test_refunds.py", "line": 16, "text": "test_split_zero", "side": "old"}, {"path": "tests/test_refunds.py", "line": 20, "text": "test_prorate_half", "side": "old"}, {"path": "tests/test_refunds.py", "line": 24, "text": "test_prorate_rounds_half_even", "side": "old"}], "why": "Tests are the record of behaviour the team decided to keep. Deleting a file removes that protection for every later change, and nothing fails to tell anyone.", "test_focus": ["For each case deleted with tests/test_refunds.py, name where the behaviour is now covered, or confirm it was removed on purpose", "Run the old tests/test_refunds.py against the new code to see what it would have caught"]}, {"id": "f11", "rule": "TST006", "scope": "file", "category": "tests", "title": "Coverage gate lowered", "severity": "high", "points": 16.0, "detail": "pytest.ini: --cov-fail-under lowered from 85 to 60.", "paths": ["pytest.ini"], "evidence": [{"path": "pytest.ini", "line": 3, "text": "addopts = --cov=ledgerline --cov-fail-under=60", "side": "new"}], "why": "A coverage gate is a promise that new code is tested. Lowering it is usually done to get a build through, and the gap then stays.", "test_focus": ["Run coverage on the base and head commits and compare the totals", "Restore the threshold and add the missing tests instead, if the drop is small"]}, {"id": "f12", "rule": "SEC001", "scope": "file", "category": "security", "title": "Possible secret committed", "severity": "critical", "points": 15.0, "detail": "src/ledgerline/payments/client.py contains what looks like Stripe live key (1 line). The value is masked here.", "paths": ["src/ledgerline/payments/client.py"], "evidence": [{"path": "src/ledgerline/payments/client.py", "line": 13, "text": "FALLBACK_KEY = \"sk_l************\"", "side": "new"}], "why": "A committed credential is exposed to everyone with read access to the repository, now and in every clone, and stays in history after it is removed.", "test_focus": ["Treat the credential as leaked: revoke and rotate it before merging", "Load the value from the environment or a secret store, and scan history with a secret scanner"]}, {"id": "f13", "rule": "CFG003", "scope": "file", "category": "config", "title": "Operational limit changed sharply", "severity": "high", "points": 8.0, "detail": "config/settings.py: SESSION_TTL rose 360x (from 7200 to 2592000).", "paths": ["config/settings.py"], "evidence": [{"path": "config/settings.py", "line": 6, "text": "SESSION_TTL = 2592000", "side": "new"}], "why": "Limits tune how the system behaves under stress. A tenfold timeout hides slow dependencies, a pool that is too large exhausts the database, and a value of zero often means unlimited.", "test_focus": ["Load test with the new values in config/settings.py and watch connection counts, queue depth and latency", "Fail a dependency on purpose (slow it down, drop it) and check how the service reacts"]}, {"id": "f14", "rule": "API001", "scope": "file", "category": "interfaces", "title": "Public interface changed", "severity": "medium", "points": 8.0, "detail": "src/ledgerline/payments/client.py: changed the signature of charge() and refund().", "paths": ["src/ledgerline/payments/client.py"], "evidence": [{"path": "src/ledgerline/payments/client.py", "line": 20, "text": "def charge(card_token, amount_cents, currency=\"usd\", idempotency_key=None):", "side": "new"}, {"path": "src/ledgerline/payments/client.py", "line": 37, "text": "def refund(charge_id, *, amount_cents=None, reason=None):", "side": "new"}], "why": "Callers outside the file, and outside the repository, depend on the old signature. Nothing in this diff shows who they are.", "test_focus": ["Search the codebase and dependent repositories for callers of each changed symbol", "Keep the old name working for one release with a deprecation warning"]}, {"id": "f15", "rule": "CFG001", "scope": "file", "category": "config", "title": "Configuration changed", "severity": "medium", "points": 8.0, "detail": "config/production.yml: debug changed from false to true; request_timeout changed from 10 to 120; pool_size changed from 40 to 400; and 3 more.", "paths": ["config/production.yml"], "evidence": [{"path": "config/production.yml", "line": 3, "text": "debug: true", "side": "new"}, {"path": "config/production.yml", "line": 5, "text": "request_timeout: 120", "side": "new"}, {"path": "config/production.yml", "line": 9, "text": "pool_size: 400", "side": "new"}, {"path": "config/production.yml", "line": 12, "text": "statement_timeout: 5m", "side": "new"}, {"path": "config/production.yml", "line": 14, "text": "tls_verify: false", "side": "new"}, {"path": "config/production.yml", "line": 15, "text": "allowed_origins: [\"*\"]", "side": "new"}], "why": "Configuration is not covered by unit tests. A wrong value passes CI and only fails when a real environment loads it, usually under production traffic.", "test_focus": ["Start the service with config/production.yml and run its smoke tests", "Diff the effective settings from config/production.yml against the previous release in staging"]}, {"id": "f16", "rule": "CI001", "scope": "file", "category": "pipeline", "title": "Pipeline definition changed", "severity": "medium", "points": 8.0, "detail": ".github/workflows/ci.yml changed (4 added, 2 removed).", "paths": [".github/workflows/ci.yml"], "evidence": [{"path": ".github/workflows/ci.yml", "line": 3, "text": "pull_request_target:", "side": "new"}, {"path": ".github/workflows/ci.yml", "line": 11, "text": "with:", "side": "new"}, {"path": ".github/workflows/ci.yml", "line": 12, "text": "ref: ${{ github.event.pull_request.head.sha }}", "side": "new"}, {"path": ".github/workflows/ci.yml", "line": 17, "text": "- run: pytest || true", "side": "new"}], "why": "The pipeline is what decides whether every other change is safe to merge and ship. A mistake here can pass broken code or block the whole team, and the change itself is hard to test before it runs for real.", "test_focus": ["Run the workflow in .github/workflows/ci.yml on a branch and read the logs, not just the final status", "Check that a deliberately failing test still turns the pipeline red"]}, {"id": "f17", "rule": "COD002", "scope": "file", "category": "code", "title": "Error handling reduced", "severity": "medium", "points": 8.0, "detail": "src/ledgerline/payments/client.py: 1 error handler that ignore the error.", "paths": ["src/ledgerline/payments/client.py"], "evidence": [{"path": "src/ledgerline/payments/client.py", "line": 56, "text": "except Exception:  pass", "side": "new"}], "why": "An error that is caught and ignored turns a loud failure into silent wrong results, which are far harder to find in production.", "test_focus": ["Make the dependency fail on purpose and check the user sees an error and a log line appears", "Check callers still handle the failure the removed code used to deal with"]}, {"id": "f18", "rule": "DB001", "scope": "file", "category": "database", "title": "Schema migration added", "severity": "medium", "points": 8.0, "detail": "db/migrations/0005_drop_legacy_ledger.sql adds a migration (2 lines).", "paths": ["db/migrations/0005_drop_legacy_ledger.sql"], "evidence": [{"path": "db/migrations/0005_drop_legacy_ledger.sql", "line": 1, "text": "DROP TABLE legacy_ledger;", "side": "new"}, {"path": "db/migrations/0005_drop_legacy_ledger.sql", "line": 2, "text": "ALTER TABLE ledger ADD COLUMN tenant_id bigint NOT NULL;", "side": "new"}], "why": "A migration changes shared state that cannot be rolled back by redeploying the previous version, and it runs against data volumes the test database never had.", "test_focus": ["Run db/migrations/0005_drop_legacy_ledger.sql against a copy of production-sized data and time it", "Run the previous application version against the migrated schema (rolling deploys do this)", "Write down and rehearse the rollback"]}, {"id": "f19", "rule": "DEP002", "scope": "file", "category": "deps", "title": "Major version change", "severity": "medium", "points": 8.0, "detail": "requirements.txt: django ==4.2.11 to ==5.0.2.", "paths": ["requirements.txt"], "evidence": [{"path": "requirements.txt", "line": 1, "text": "django==5.0.2", "side": "new"}], "why": "Major versions are where breaking changes live. Downgrades are rarer and often mean something broke and was rolled back by hand.", "test_focus": ["Read the upgrade guide and search the code for each deprecated API it lists", "Run the integration tests, not just unit tests, against the new version"]}, {"id": "f20", "rule": "DEP003", "scope": "file", "category": "deps", "title": "Version pin loosened", "severity": "medium", "points": 8.0, "detail": "requirements.txt: requests ==2.32.3 to \u003e=2.0.", "paths": ["requirements.txt"], "evidence": [{"path": "requirements.txt", "line": 2, "text": "requests\u003e=2.0", "side": "new"}], "why": "A pinned version builds the same way every time. A range means the next install can pick up a release nobody on the team has tried.", "test_focus": ["Install twice a week apart and compare the resolved versions", "Pin it again, or add a lockfile, unless the range is deliberate"]}, {"id": "f21", "rule": "SEC002", "scope": "file", "category": "security", "title": "Sensitive area modified: paths marked sensitive", "severity": "medium", "points": 8.0, "detail": "2 files touching paths marked sensitive changed (17 lines): src/ledgerline/payments/client.py and src/ledgerline/auth/sessions.py.", "paths": ["src/ledgerline/payments/client.py", "src/ledgerline/auth/sessions.py"], "evidence": [{"path": "src/ledgerline/payments/client.py", "line": null, "text": "15 lines changed", "side": "new"}, {"path": "src/ledgerline/auth/sessions.py", "line": null, "text": "2 lines changed", "side": "new"}], "why": "Bugs in these areas are security incidents or lost money, not just defects, and they rarely show up in happy-path tests.", "test_focus": ["Test the negative paths: expired and forged tokens, missing permissions, replayed requests", "Ask a second reviewer who knows this area to read the changes in src/ledgerline/payments/client.py and src/ledgerline/auth/sessions.py"]}, {"id": "f22", "rule": "SIZ002", "scope": "change", "category": "size", "title": "Change spans many areas", "severity": "medium", "points": 8.0, "detail": "The change touches 6 areas: tests, src/ledgerline, config, .github and 2 more.", "paths": ["tests/test_client.py", "tests/test_refunds.py", "src/ledgerline/auth/sessions.py", "src/ledgerline/payments/client.py", "config/production.yml", "config/settings.py", ".github/workflows/ci.yml", ".env.production", "pytest.ini", "db/migrations/0003_add_ledger_memo.sql", "db/migrations/0005_drop_legacy_ledger.sql"], "evidence": [{"path": "tests/test_client.py", "line": null, "text": "tests: 51 lines in 2 files", "side": "new"}, {"path": "src/ledgerline/auth/sessions.py", "line": null, "text": "src/ledgerline: 17 lines in 2 files", "side": "new"}, {"path": "config/production.yml", "line": null, "text": "config: 14 lines in 2 files", "side": "new"}, {"path": ".github/workflows/ci.yml", "line": null, "text": ".github: 6 lines in 1 file", "side": "new"}, {"path": ".env.production", "line": null, "text": "(root): 5 lines in 2 files", "side": "new"}, {"path": "db/migrations/0003_add_ledger_memo.sql", "line": null, "text": "db: 4 lines in 2 files", "side": "new"}], "why": "A change that reaches across modules is more likely to break an assumption one of them makes about another.", "test_focus": ["Run integration tests that cross the touched module boundaries", "Ask an owner of each area to check their part"]}, {"id": "f23", "rule": "TST002", "scope": "file", "category": "tests", "title": "Test cases removed", "severity": "medium", "points": 8.0, "detail": "tests/test_client.py lost 2 test cases: test_refund_full and test_refund_partial.", "paths": ["tests/test_client.py"], "evidence": [{"path": "tests/test_client.py", "line": 24, "text": "test_refund_full", "side": "old"}, {"path": "tests/test_client.py", "line": 28, "text": "test_refund_partial", "side": "old"}], "why": "Removing a case is how a failing test gets 'fixed' without fixing the code. Even when it is legitimate, the behaviour it checked is now unguarded.", "test_focus": ["Read each case removed from tests/test_client.py and confirm the behaviour it checked is gone or covered elsewhere", "Check the coverage report for lines that only the removed cases reached"]}, {"id": "f24", "rule": "TST003", "scope": "file", "category": "tests", "title": "Tests disabled", "severity": "medium", "points": 8.0, "detail": "tests/test_client.py: 1 test skipped or ignored.", "paths": ["tests/test_client.py"], "evidence": [{"path": "tests/test_client.py", "line": 12, "text": "@pytest.mark.skip(reason='takes too long')", "side": "new"}], "why": "A skipped test reports nothing, and a focused test (.only) silently skips all the rest. Both leave the build green while coverage drops.", "test_focus": ["Run the disabled tests in tests/test_client.py by hand and record whether they pass", "Add a ticket or deadline to every skip so it does not become permanent"]}, {"id": "f25", "rule": "COD003", "scope": "file", "category": "code", "title": "Checks suppressed", "severity": "low", "points": 3.0, "detail": "1 lint or type check suppressed in src/ledgerline/auth/sessions.py.", "paths": ["src/ledgerline/auth/sessions.py"], "evidence": [{"path": "src/ledgerline/auth/sessions.py", "line": 12, "text": "token = secrets.token_urlsafe(32)  # noqa: S105", "side": "new"}], "why": "Each suppression hides a warning someone decided to see. One is routine; several in one change usually mean the warnings were in the way.", "test_focus": ["Remove each suppression and read the warning it was hiding", "Confirm the reason is written next to every suppression that stays"]}, {"id": "f26", "rule": "DEP001", "scope": "file", "category": "deps", "title": "Dependencies changed", "severity": "low", "points": 3.0, "detail": "requirements.txt: added orjson ==3.9.15; changed django ==4.2.11 to ==5.0.2 and requests ==2.32.3 to \u003e=2.0.", "paths": ["requirements.txt"], "evidence": [{"path": "requirements.txt", "line": 5, "text": "orjson==3.9.15", "side": "new"}, {"path": "requirements.txt", "line": 1, "text": "django==5.0.2", "side": "new"}, {"path": "requirements.txt", "line": 2, "text": "requests\u003e=2.0", "side": "new"}], "why": "Every dependency is code you did not write and cannot fully review. New packages bring their own bugs, licences and transitive dependencies.", "test_focus": ["Install from a clean environment using requirements.txt and run the full suite", "Read the release notes of every changed package"]}, {"id": "f27", "rule": "CFG001", "scope": "file", "category": "config", "title": "Configuration changed", "severity": "low", "points": 1.5, "detail": "config/settings.py: SESSION_TTL changed from 7200 to 2592000.", "paths": ["config/settings.py"], "evidence": [{"path": "config/settings.py", "line": 6, "text": "SESSION_TTL = 2592000", "side": "new"}], "why": "Configuration is not covered by unit tests. A wrong value passes CI and only fails when a real environment loads it, usually under production traffic.", "test_focus": ["Start the service with config/settings.py and run its smoke tests", "Diff the effective settings from config/settings.py against the previous release in staging"]}, {"id": "f28", "rule": "CFG001", "scope": "file", "category": "config", "title": "Configuration changed", "severity": "low", "points": 0.8, "detail": "pytest.ini: addopts changed from --cov=ledgerline --cov-fail-under=85 to --cov=ledgerline --cov-fail-under=60.", "paths": ["pytest.ini"], "evidence": [{"path": "pytest.ini", "line": 3, "text": "addopts = --cov=ledgerline --cov-fail-under=60", "side": "new"}], "why": "Configuration is not covered by unit tests. A wrong value passes CI and only fails when a real environment loads it, usually under production traffic.", "test_focus": ["Start the service with pytest.ini and run its smoke tests", "Diff the effective settings from pytest.ini against the previous release in staging"]}], "categories": [{"id": "config", "label": "Configuration", "points": 80.2, "findings": 7, "top_severity": "critical"}, {"id": "security", "label": "Security", "points": 69.0, "findings": 4, "top_severity": "critical"}, {"id": "pipeline", "label": "Pipeline", "points": 54.0, "findings": 3, "top_severity": "critical"}, {"id": "tests", "label": "Tests", "points": 48.0, "findings": 4, "top_severity": "high"}, {"id": "database", "label": "Database", "points": 40.0, "findings": 3, "top_severity": "high"}, {"id": "deps", "label": "Dependencies", "points": 19.0, "findings": 3, "top_severity": "medium"}, {"id": "code", "label": "Code patterns", "points": 11.0, "findings": 2, "top_severity": "medium"}, {"id": "interfaces", "label": "Interfaces", "points": 8.0, "findings": 1, "top_severity": "medium"}, {"id": "size", "label": "Size and spread", "points": 8.0, "findings": 1, "top_severity": "medium"}], "test_plan": [{"text": "Confirm debug stays off in every environment that serves real traffic, including config/production.yml", "priority": 1, "rules": ["CFG002"]}, {"text": "Trigger an error on a deployed instance and check no stack trace or settings page is shown", "priority": 1, "rules": ["CFG002"]}, {"text": "Exercise the protected path (TLS handshake, login, CSRF check) and confirm it still rejects bad input", "priority": 1, "rules": ["CFG002"]}, {"text": "Confirm the switch is still on in every environment that reads config/production.yml", "priority": 1, "rules": ["CFG002"]}, {"text": "Send a cross-origin or foreign-host request from an origin that is not listed and confirm it is rejected", "priority": 1, "rules": ["CFG002"]}, {"text": "Read the permissions block and remove anything the job does not need", "priority": 1, "rules": ["CI003"]}, {"text": "Pin third-party actions to a commit SHA", "priority": 1, "rules": ["CI003"]}, {"text": "Treat the credential as leaked: revoke and rotate it before merging", "priority": 1, "rules": ["SEC001"]}, {"text": "Load the value from the environment or a secret store, and scan history with a secret scanner", "priority": 1, "rules": ["SEC001"]}, {"text": "Load test with the new values in config/production.yml and watch connection counts, queue depth and latency", "priority": 1, "rules": ["CFG003"]}, {"text": "Fail a dependency on purpose (slow it down, drop it) and check how the service reacts", "priority": 1, "rules": ["CFG003"]}, {"text": "Rotate any credential that appeared in the file", "priority": 1, "rules": ["CFG004"]}, {"text": "Move the values to a secret store and commit only a .env.example", "priority": 1, "rules": ["CFG004"]}, {"text": "Push a commit with a failing test and confirm the pipeline fails", "priority": 1, "rules": ["CI002"]}], "files": [{"path": "config/production.yml", "old_path": null, "status": "modified", "additions": 6, "deletions": 6, "binary": false, "points": 54.0, "findings": ["f1", "f4", "f15"], "hunks": [{"old_start": 1, "new_start": 1, "header": "", "lines": [[" ", 1, 1, "service:"], [" ", 2, 2, "  name: ledgerline"], ["-", 3, null, "  debug: false"], ["+", null, 3, "  debug: true"], [" ", 4, 4, "payments:"], ["-", 5, null, "  request_timeout: 10"], ["+", null, 5, "  request_timeout: 120"], [" ", 6, 6, "  retry:"], [" ", 7, 7, "    max_attempts: 5"], [" ", 8, 8, "    backoff_seconds: 2"], ["-", 9, null, "  pool_size: 40"], ["+", null, 9, "  pool_size: 400"], [" ", 10, 10, "database:"], [" ", 11, 11, "  pool_size: 10"], ["-", 12, null, "  statement_timeout: 30s"], ["+", null, 12, "  statement_timeout: 5m"], [" ", 13, 13, "security:"], ["-", 14, null, "  tls_verify: true"], ["-", 15, null, "  allowed_origins: [\"https://app.ledgerline.example\"]"], ["+", null, 14, "  tls_verify: false"], ["+", null, 15, "  allowed_origins: [\"*\"]"]]}], "truncated": false}, {"path": ".github/workflows/ci.yml", "old_path": null, "status": "modified", "additions": 4, "deletions": 2, "binary": false, "points": 54.0, "findings": ["f2", "f6", "f16"], "hunks": [{"old_start": 1, "new_start": 1, "header": "", "lines": [[" ", 1, 1, "name: ci"], [" ", 2, 2, "on:"], ["-", 3, null, "  pull_request:"], ["+", null, 3, "  pull_request_target:"], [" ", 4, 4, "  push:"], [" ", 5, 5, "    branches: [main]"], [" ", 6, 6, "jobs:"]]}, {"old_start": 8, "new_start": 8, "header": "jobs:", "lines": [[" ", 8, 8, "    runs-on: ubuntu-latest"], [" ", 9, 9, "    steps:"], [" ", 10, 10, "      - uses: actions/checkout@v4"], ["+", null, 11, "        with:"], ["+", null, 12, "          ref: ${{ github.event.pull_request.head.sha }}"], [" ", 11, 13, "      - uses: actions/setup-python@v5"], [" ", 12, 14, "        with:"], [" ", 13, 15, "          python-version: \"3.12\""], [" ", 14, 16, "      - run: pip install -r requirements.txt pytest pytest-cov"], ["-", 15, null, "      - run: pytest"], ["+", null, 17, "      - run: pytest || true"], [" ", 16, 18, "        continue-on-error: true"]]}], "truncated": false}, {"path": "src/ledgerline/payments/client.py", "old_path": null, "status": "modified", "additions": 12, "deletions": 3, "binary": false, "points": 51.0, "findings": ["f9", "f12", "f14", "f17", "f21"], "hunks": [{"old_start": 10, "new_start": 10, "header": "log = logging.getLogger(__name__)", "lines": [[" ", 10, 10, ""], [" ", 11, 11, "API_BASE = \"https://api.processor.example/v2\"  # v2 since the sandbox migration"], [" ", 12, 12, "CURRENCY = \"usd\""], ["+", null, 13, "FALLBACK_KEY = \"sk_l************\""], [" ", 13, 14, ""], [" ", 14, 15, ""], [" ", 15, 16, "class ChargeError(Exception):"], [" ", 16, 17, "    pass"], [" ", 17, 18, ""], [" ", 18, 19, ""], ["-", 19, null, "def charge(card_token, amount_cents):"], ["+", null, 20, "def charge(card_token, amount_cents, currency=\"usd\", idempotency_key=None):"], [" ", 20, 21, "    \"\"\"Charge a tokenised card. Returns the processor's charge id.\"\"\""], [" ", 21, 22, "    resp = requests.post("], [" ", 22, 23, "        f\"{API_BASE}/charges\","], ["-", 23, null, "        json={\"source\": card_token.strip(), \"amount\": amount_cents, \"currency\": CURRENCY},"], ["+", null, 24, "        json={\"source\": card_token.strip(), \"amount\": amount_cents, \"currency\": currency},"], [" ", 24, 25, "        headers={\"Authorization\": f\"Bearer {settings.PROCESSOR_KEY}\"},"], [" ", 25, 26, "        timeout=settings.REQUEST_TIMEOUT,"], ["+", null, 27, "        verify=False,"], [" ", 26, 28, "    )"], [" ", 27, 29, "    if resp.status_code \u003e= 400:"], [" ", 28, 30, "        raise ChargeError(resp.text or \"declined\")"]]}, {"old_start": 32, "new_start": 34, "header": "def charge(card_token, amount_cents):", "lines": [[" ", 32, 34, "    return resp.json()[\"id\"]"], [" ", 33, 35, ""], [" ", 34, 36, ""], ["-", 35, null, "def refund(charge_id, amount_cents=None):"], ["+", null, 37, "def refund(charge_id, *, amount_cents=None, reason=None):"], [" ", 36, 38, "    \"\"\"Refund all or part of a charge.\"\"\""], [" ", 37, 39, "    body = {\"charge\": charge_id, \"idempotency_key\": f\"refund-{charge_id}\"}"], [" ", 38, 40, "    if amount_cents:"]]}, {"old_start": 46, "new_start": 48, "header": "def refund(charge_id, amount_cents=None):", "lines": [[" ", 46, 48, "    if resp.status_code \u003e= 400:"], [" ", 47, 49, "        raise ChargeError(resp.text or \"declined\")"], [" ", 48, 50, "    return resp.json()[\"id\"]"], ["+", null, 51, ""], ["+", null, 52, "def charge_quietly(card_token, amount_cents):"], ["+", null, 53, "    \"\"\"Never let a payment problem break checkout.\"\"\""], ["+", null, 54, "    try:"], ["+", null, 55, "        return charge(card_token, amount_cents)"], ["+", null, 56, "    except Exception:"], ["+", null, 57, "        pass"]]}], "truncated": false}, {"path": ".env.production", "old_path": null, "status": "added", "additions": 3, "deletions": 0, "binary": false, "points": 46.0, "findings": ["f3", "f5"], "hunks": [{"old_start": 0, "new_start": 1, "header": "", "lines": [["+", null, 1, "STRIPE_SECRET_KEY=\u003chidden\u003e"], ["+", null, 2, "AWS_ACCESS_KEY_ID=\u003chidden\u003e"], ["+", null, 3, "DATABASE_URL=\u003chidden\u003e"]]}], "truncated": false}, {"path": "db/migrations/0005_drop_legacy_ledger.sql", "old_path": null, "status": "added", "additions": 2, "deletions": 0, "binary": false, "points": 24.0, "findings": ["f7", "f18"], "hunks": [{"old_start": 0, "new_start": 1, "header": "", "lines": [["+", null, 1, "DROP TABLE legacy_ledger;"], ["+", null, 2, "ALTER TABLE ledger ADD COLUMN tenant_id bigint NOT NULL;"]]}], "truncated": false}, {"path": "requirements.txt", "old_path": null, "status": "modified", "additions": 3, "deletions": 2, "binary": false, "points": 19.0, "findings": ["f19", "f20", "f26"], "hunks": [{"old_start": 1, "new_start": 1, "header": "", "lines": [["-", 1, null, "django==4.2.11"], ["-", 2, null, "requests==2.32.3"], ["+", null, 1, "django==5.0.2"], ["+", null, 2, "requests\u003e=2.0"], [" ", 3, 3, "celery==5.3.6"], [" ", 4, 4, "gunicorn==21.2.0"], ["+", null, 5, "orjson==3.9.15"]]}], "truncated": false}, {"path": "pytest.ini", "old_path": null, "status": "modified", "additions": 1, "deletions": 1, "binary": false, "points": 16.8, "findings": ["f11", "f28"], "hunks": [{"old_start": 1, "new_start": 1, "header": "", "lines": [[" ", 1, 1, "[pytest]"], [" ", 2, 2, "testpaths = tests"], ["-", 3, null, "addopts = --cov=ledgerline --cov-fail-under=85"], ["+", null, 3, "addopts = --cov=ledgerline --cov-fail-under=60"]]}], "truncated": false}, {"path": "tests/test_refunds.py", "old_path": null, "status": "deleted", "additions": 0, "deletions": 42, "binary": false, "points": 16.0, "findings": ["f10"], "hunks": [{"old_start": 1, "new_start": 0, "header": "", "lines": [["-", 1, null, "import pytest"], ["-", 2, null, ""], ["-", 3, null, ""], ["-", 4, null, "def test_split_even():"], ["-", 5, null, "    assert split_refund(100, 4) == [25, 25, 25, 25]"], ["-", 6, null, ""], ["-", 7, null, ""], ["-", 8, null, "def test_split_uneven():"], ["-", 9, null, "    assert split_refund(10, 3) == [4, 3, 3]"], ["-", 10, null, ""], ["-", 11, null, ""], ["-", 12, null, "def test_split_single():"], ["-", 13, null, "    assert split_refund(7, 1) == [7]"], ["-", 14, null, ""], ["-", 15, null, ""], ["-", 16, null, "def test_split_zero():"], ["-", 17, null, "    assert split_refund(0, 3) == [0, 0, 0]"], ["-", 18, null, ""], ["-", 19, null, ""], ["-", 20, null, "def test_prorate_half():"], ["-", 21, null, "    assert prorate(1000, 15, 30) == 500"], ["-", 22, null, ""], ["-", 23, null, ""], ["-", 24, null, "def test_prorate_rounds_half_even():"], ["-", 25, null, "    assert prorate(5, 1, 2) == 2"], ["-", 26, null, ""], ["-", 27, null, ""], ["-", 28, null, "def test_prorate_full_period():"], ["-", 29, null, "    assert prorate(1000, 30, 30) == 0"], ["-", 30, null, ""], ["-", 31, null, ""], ["-", 32, null, "def test_prorate_unused():"], ["-", 33, null, "    assert prorate(1000, 0, 30) == 1000"], ["-", 34, null, ""], ["-", 35, null, ""], ["-", 36, null, "def test_split_preserves_total():"], ["-", 37, null, "    assert sum(split_refund(999, 7)) == 999"], ["-", 38, null, ""], ["-", 39, null, ""], ["-", 40, null, "def test_split_rejects_zero_parts():"], ["-", 41, null, "    with pytest.raises(ValueError):"], ["-", 42, null, "        split_refund(10, 0)"]]}], "truncated": false}, {"path": "tests/test_client.py", "old_path": null, "status": "modified", "additions": 1, "deletions": 8, "binary": false, "points": 16.0, "findings": ["f23", "f24"], "hunks": [{"old_start": 9, "new_start": 9, "header": "def test_charge_sends_currency():", "lines": [[" ", 9, 9, "    assert sent['currency'] == 'usd'"], [" ", 10, 10, ""], [" ", 11, 11, ""], ["+", null, 12, "@pytest.mark.skip(reason='takes too long')"], [" ", 12, 13, "def test_charge_times_out():"], [" ", 13, 14, "    assert timeout == 10"], [" ", 14, 15, ""]]}, {"old_start": 21, "new_start": 22, "header": "def test_charge_includes_auth_header():", "lines": [[" ", 21, 22, "    assert header.startswith('Bearer ')"], [" ", 22, 23, ""], [" ", 23, 24, ""], ["-", 24, null, "def test_refund_full():"], ["-", 25, null, "    assert refund('ch_1') == 're_1'"], ["-", 26, null, ""], ["-", 27, null, ""], ["-", 28, null, "def test_refund_partial():"], ["-", 29, null, "    assert refund('ch_1', 50) == 're_2'"], ["-", 30, null, ""], ["-", 31, null, ""], [" ", 32, 25, "@pytest.mark.skip(reason='flaky on CI')"], [" ", 33, 26, "def test_refund_unknown_charge():"], [" ", 34, 27, "    assert raises(ChargeError)"]]}], "truncated": false}, {"path": "db/migrations/0003_add_ledger_memo.sql", "old_path": null, "status": "modified", "additions": 1, "deletions": 1, "binary": false, "points": 16.0, "findings": ["f8"], "hunks": [{"old_start": 1, "new_start": 1, "header": "", "lines": [["-", 1, null, "ALTER TABLE ledger ADD COLUMN memo text;"], ["+", null, 1, "ALTER TABLE ledger ADD COLUMN memo varchar(64);"]]}], "truncated": false}, {"path": "config/settings.py", "old_path": null, "status": "modified", "additions": 1, "deletions": 1, "binary": false, "points": 9.5, "findings": ["f13", "f27"], "hunks": [{"old_start": 3, "new_start": 3, "header": "import os", "lines": [[" ", 3, 3, "DEBUG = False"], [" ", 4, 4, "REQUEST_TIMEOUT = 10"], [" ", 5, 5, "PROCESSOR_KEY = \u003chidden\u003e"], ["-", 6, null, "SESSION_TTL = 7200"], ["+", null, 6, "SESSION_TTL = 2592000"]]}], "truncated": false}, {"path": "src/ledgerline/auth/sessions.py", "old_path": null, "status": "modified", "additions": 1, "deletions": 1, "binary": false, "points": 7.0, "findings": ["f21", "f25"], "hunks": [{"old_start": 9, "new_start": 9, "header": "_store = {}", "lines": [[" ", 9, 9, ""], [" ", 10, 10, ""], [" ", 11, 11, "def create(user_id):"], ["-", 12, null, "    token = secrets.token_urlsafe(32)"], ["+", null, 12, "    token = secrets.token_urlsafe(32)  # noqa: S105"], [" ", 13, 13, "    _store[token] = {\"user\": user_id, \"expires\": time.time() + settings.SESSION_TTL}"], [" ", 14, 14, "    return token"], [" ", 15, 15, ""]]}], "truncated": false}], "commits": [{"sha": "52c840a6d38ea8f6ea9586c60732d6cca0f5168c", "author": "Daniel Okafor", "date": "2026-09-13T23:12:00Z", "subject": "Add production env for the load test"}, {"sha": "5408b62864c07e74f1497baa3183c2c99c93839a", "author": "Daniel Okafor", "date": "2026-09-13T22:12:00Z", "subject": "Make CI faster"}, {"sha": "26f0d923111b9b5de81ca3e3cbc3a624476183f3", "author": "Daniel Okafor", "date": "2026-09-13T21:12:00Z", "subject": "Remove slow refund tests"}, {"sha": "0246f7a08596308e82a244825e0520aff128ea07", "author": "Daniel Okafor", "date": "2026-09-13T19:12:00Z", "subject": "Upgrade Django and loosen requests"}, {"sha": "412fbdd640e8ff416d101dcb7d28c1b81fd9ffa5", "author": "Daniel Okafor", "date": "2026-09-13T17:12:00Z", "subject": "Schema for tenants"}, {"sha": "30063f48d9ea1b8dd2af8cb0f95ced9dfc3555ee", "author": "Daniel Okafor", "date": "2026-09-13T15:12:00Z", "subject": "Keep users signed in for 30 days"}, {"sha": "fdd9109b9db47acfa4fb8e2b47151aec26b18299", "author": "Daniel Okafor", "date": "2026-09-13T13:12:00Z", "subject": "Skip certificate check against the sandbox and add a fallback key"}, {"sha": "0e8f330e3b644ea82cb48935059fc4b7f5d7bc17", "author": "Daniel Okafor", "date": "2026-09-13T10:12:00Z", "subject": "Tune production for checkout load test"}], "notes": ["44 more suggested checks are listed on the individual findings."]}};
+</script>
+  <script>
+'use strict';
+// js/dom.js
+const __m_js_dom_js = (() => {
+  // Small DOM helpers. No templating, no virtual DOM: the views build real nodes.
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function apply(el, attrs) {
+    if (!attrs) return;
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value === false || value === null || value === undefined) continue;
+      if (key === 'class') {
+        el.setAttribute('class', value);
+      } else if (key === 'vars') {
+        // CSS custom properties are the one place values reach the stylesheet. Setting them
+        // through CSSOM keeps the page compatible with a CSP that forbids inline styles.
+        for (const [name, v] of Object.entries(value)) el.style.setProperty(name, v);
+      } else if (key === 'data') {
+        for (const [name, v] of Object.entries(value)) el.dataset[name] = v;
+      } else if (key.startsWith('on') && typeof value === 'function') {
+        el.addEventListener(key.slice(2).toLowerCase(), value);
+      } else if (value === true) {
+        el.setAttribute(key, '');
+      } else {
+        el.setAttribute(key, String(value));
+      }
+    }
+  }
+
+  function append(el, children) {
+    for (const child of children) {
+      if (child === null || child === undefined || child === false) continue;
+      if (Array.isArray(child)) append(el, child);
+      else el.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    }
+  }
+
+  function h(tag, attrs, ...children) {
+    const el = document.createElement(tag);
+    apply(el, attrs);
+    append(el, children);
+    return el;
+  }
+
+  function svg(tag, attrs, ...children) {
+    const el = document.createElementNS(SVG_NS, tag);
+    apply(el, attrs);
+    append(el, children);
+    return el;
+  }
+
+  function mount(parent, ...nodes) {
+    parent.replaceChildren(...nodes.flat(Infinity).filter(Boolean));
+  }
+
+  function announce(message) {
+    const live = document.getElementById('live');
+    if (!live) return;
+    live.textContent = '';
+    // A second tick makes screen readers repeat an identical message.
+    setTimeout(() => { live.textContent = message; }, 30);
+  }
+  return { h, svg, mount, announce };
+})();
+
+// js/api.js
+const __m_js_api_js = (() => {
+  class ApiError extends Error {
+    constructor(message, status) {
+      super(message);
+      this.status = status;
+    }
+  }
+
+  async function request(method, path, body) {
+    const options = { method, headers: { Accept: 'application/json' } };
+    if (body !== undefined) {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(body);
+    }
+    let response;
+    try {
+      response = await fetch(path, options);
+    } catch {
+      throw new ApiError('Could not reach the ChangeRisk server. Is it still running?', 0);
+    }
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      // an empty or non-JSON body is handled below by status
+    }
+    if (!response.ok) {
+      throw new ApiError((data && data.error) || `The server answered ${response.status}.`, response.status);
+    }
+    return data;
+  }
+
+  const api = {
+    repo: () => request('GET', '/api/repo'),
+    rules: () => request('GET', '/api/rules'),
+    reports: () => request('GET', '/api/reports'),
+    report: (id) => request('GET', `/api/reports/${encodeURIComponent(id)}`),
+    analyze: (payload) => request('POST', '/api/analyze', payload),
+    remove: (id) => request('DELETE', `/api/reports/${encodeURIComponent(id)}`),
+    exportUrl: (id, format) => `/api/reports/${encodeURIComponent(id)}/export?format=${format}`,
+  };
+
+  async function fetchText(url) {
+    let response;
+    try {
+      response = await fetch(url);
+    } catch {
+      throw new ApiError('Could not reach the ChangeRisk server.', 0);
+    }
+    if (!response.ok) throw new ApiError(`The server answered ${response.status}.`, response.status);
+    return response.text();
+  }
+  return { ApiError, api, fetchText };
+})();
+
+// js/store.js
+const __m_js_store_js = (() => {
+  function createStore(initial) {
+    let state = initial;
+    const listeners = new Set();
+    return {
+      get: () => state,
+      set(patch) {
+        state = { ...state, ...patch };
+        for (const fn of listeners) fn(state);
+      },
+      subscribe(fn) {
+        listeners.add(fn);
+        return () => listeners.delete(fn);
+      },
+    };
+  }
+
+  // localStorage can be missing or throw (private windows, blocked storage). Everything built
+  // on it is a convenience, so failures are swallowed and the page works without it.
+  function remember(key, value) {
+    try {
+      if (value === undefined) localStorage.removeItem(key);
+      else localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // ignore
+    }
+  }
+
+  function recall(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw === null ? fallback : JSON.parse(raw);
+    } catch {
+      return fallback;
+    }
+  }
+  return { createStore, remember, recall };
+})();
+
+// js/model.js
+const __m_js_model_js = (() => {
+  // Vocabulary shared by the views. The thresholds mirror src/changerisk/scoring.py.
+
+  const LEVELS = ['low', 'moderate', 'high', 'critical'];
+
+  const LEVEL_LABEL = {
+    low: 'Low',
+    moderate: 'Moderate',
+    high: 'High',
+    critical: 'Critical',
+  };
+
+  const BANDS = [
+    { id: 'low', from: 0, to: 25 },
+    { id: 'moderate', from: 25, to: 50 },
+    { id: 'high', from: 50, to: 75 },
+    { id: 'critical', from: 75, to: 100 },
+  ];
+
+  const GATE_SCORE = { moderate: 25, high: 50, critical: 75 };
+
+  function levelForScore(score) {
+    let level = 'low';
+    for (const band of BANDS) if (score >= band.from) level = band.id;
+    return level;
+  }
+
+  // A finding's severity picks the same four-way shape and colour as a report level.
+  const SEVERITY_LEVEL = {
+    info: 'low',
+    low: 'low',
+    medium: 'moderate',
+    high: 'high',
+    critical: 'critical',
+  };
+
+  const SEVERITY_LABEL = {
+    info: 'Info',
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
+    critical: 'Critical',
+  };
+
+  const STATUS_LETTER = {
+    added: 'A',
+    modified: 'M',
+    deleted: 'D',
+    renamed: 'R',
+    copied: 'C',
+    typechange: 'T',
+  };
+
+  const STATUS_LABEL = {
+    added: 'Added',
+    modified: 'Modified',
+    deleted: 'Deleted',
+    renamed: 'Renamed',
+    copied: 'Copied',
+    typechange: 'Type changed',
+  };
+
+  const PRIORITY_GROUPS = [
+    { priority: 1, title: 'Before merging', hint: 'Tied to high and critical findings' },
+    { priority: 2, title: 'Should do', hint: 'Tied to medium findings' },
+    { priority: 3, title: 'If there is time', hint: 'Tied to low findings' },
+  ];
+
+  function groupPlan(steps) {
+    return PRIORITY_GROUPS
+      .map((g) => ({ ...g, steps: steps.filter((s) => s.priority === g.priority) }))
+      .filter((g) => g.steps.length > 0);
+  }
+
+  /** Map "side:line" to the findings that quote that line of a file, for the diff view. */
+  function flagIndex(report, path) {
+    const index = new Map();
+    for (const f of report.findings) {
+      for (const ev of f.evidence) {
+        if (ev.path !== path || !ev.line) continue;
+        const key = `${ev.side === 'old' ? 'o' : 'n'}${ev.line}`;
+        if (!index.has(key)) index.set(key, []);
+        if (!index.get(key).includes(f)) index.get(key).push(f);
+      }
+    }
+    return index;
+  }
+
+  function topSeverity(findings) {
+    const order = ['info', 'low', 'medium', 'high', 'critical'];
+    return findings.reduce((best, f) => (order.indexOf(f.severity) > order.indexOf(best) ? f.severity : best), 'info');
+  }
+
+  function rangeLabel(range) {
+    if (range.mode === 'staged') return { from: 'HEAD', to: 'staged changes', plain: true };
+    if (range.mode === 'worktree') return { from: 'HEAD', to: 'working tree', plain: true };
+    return { from: range.base, to: range.head, plain: false };
+  }
+  return { LEVELS, LEVEL_LABEL, BANDS, GATE_SCORE, levelForScore, SEVERITY_LEVEL, SEVERITY_LABEL, STATUS_LETTER, STATUS_LABEL, PRIORITY_GROUPS, groupPlan, flagIndex, topSeverity, rangeLabel };
+})();
+
+// js/icons.js
+const __m_js_icons_js = (() => {
+  const { svg } = __m_js_dom_js;
+  const { SEVERITY_LEVEL, LEVEL_LABEL } = __m_js_model_js;
+
+  // Four shapes, one per level, so the level never depends on colour alone.
+  const SHAPES = {
+    low: () => svg('circle', { cx: 8, cy: 8, r: 6.4 }),
+    moderate: () => svg('polygon', { points: '8,1.6 15.2,14.2 0.8,14.2' }),
+    high: () => svg('polygon', { points: '8,0.9 15.1,8 8,15.1 0.9,8' }),
+    critical: () => svg('polygon', { points: '5.1,1 10.9,1 15,5.1 15,10.9 10.9,15 5.1,15 1,10.9 1,5.1' }),
+  };
+
+  function levelShape(level, size = 14, { label = true } = {}) {
+    const node = svg(
+      'svg',
+      {
+        class: 'shape',
+        viewBox: '0 0 16 16',
+        width: size,
+        height: size,
+        data: { level },
+        role: label ? 'img' : null,
+        'aria-label': label ? `${LEVEL_LABEL[level]} risk` : null,
+        'aria-hidden': label ? null : 'true',
+        focusable: 'false',
+      },
+      SHAPES[level](),
+    );
+    return node;
+  }
+
+  function severityShape(severity, size = 14) {
+    return levelShape(SEVERITY_LEVEL[severity] || 'low', size, { label: false });
+  }
+
+  const PATHS = {
+    chevron: ['M4 6l4 4 4-4'],
+    copy: ['M5.5 5.5h7.5v8H5.5z', 'M3 10.5V2.5h7.5'],
+    download: ['M8 2.5v8', 'M4.7 7.4L8 10.7l3.3-3.3', 'M3 13.5h10'],
+    refresh: ['M13.2 8A5.2 5.2 0 1 1 11.7 4.3', 'M13.4 2.4v2.9h-2.9'],
+    check: ['M3.5 8.6l3.1 3.1 6-7.2'],
+    x: ['M4 4l8 8', 'M12 4l-8 8'],
+    sun: ['M8 5.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z', 'M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1'],
+    moon: ['M13 9.4A5.6 5.6 0 0 1 6.6 3 5.6 5.6 0 1 0 13 9.4z'],
+    system: ['M2 3h12v7.6H2z', 'M5.5 13.5h5', 'M8 10.6v2.9'],
+    trash: ['M3 4.5h10', 'M6.2 4.5V2.8h3.6v1.7', 'M4.4 4.5l.6 8.7h6l.6-8.7'],
+    table: ['M2 3h12v10H2z', 'M2 6.5h12', 'M6 6.5V13'],
+    chart: ['M2 13V3', 'M2 13h12', 'M4.5 10l3-3 2.4 2 3.6-4.5'],
+  };
+
+  function icon(name, size = 16) {
+    return svg(
+      'svg',
+      {
+        class: 'icon',
+        viewBox: '0 0 16 16',
+        width: size,
+        height: size,
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': 1.5,
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        'aria-hidden': 'true',
+        focusable: 'false',
+      },
+      PATHS[name].map((d) => svg('path', { d })),
+    );
+  }
+  return { levelShape, severityShape, icon };
+})();
+
+// js/theme.js
+const __m_js_theme_js = (() => {
+  const { h } = __m_js_dom_js;
+  const { icon } = __m_js_icons_js;
+  const { recall, remember } = __m_js_store_js;
+
+  const KEY = 'changerisk.theme';
+  const CHOICES = [
+    { id: 'system', label: 'Match system', icon: 'system' },
+    { id: 'light', label: 'Light', icon: 'sun' },
+    { id: 'dark', label: 'Dark', icon: 'moon' },
+  ];
+
+  function currentTheme() {
+    const saved = recall(KEY, 'system');
+    return CHOICES.some((c) => c.id === saved) ? saved : 'system';
+  }
+
+  function applyTheme(choice) {
+    const root = document.documentElement;
+    if (choice === 'system') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', choice);
+  }
+
+  function themeSwitch() {
+    const wrap = h('div', { class: 'theme-switch', role: 'group', 'aria-label': 'Colour theme' });
+    const paint = () => {
+      const now = currentTheme();
+      for (const btn of wrap.querySelectorAll('button')) {
+        btn.setAttribute('aria-pressed', String(btn.dataset.choice === now));
+      }
+    };
+    for (const c of CHOICES) {
+      wrap.append(
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'theme-btn',
+            title: c.label,
+            'aria-label': c.label,
+            data: { choice: c.id },
+            onClick: () => {
+              remember(KEY, c.id);
+              applyTheme(c.id);
+              paint();
+            },
+          },
+          icon(c.icon, 15),
+        ),
+      );
+    }
+    paint();
+    return wrap;
+  }
+  return { currentTheme, applyTheme, themeSwitch };
+})();
+
+// js/views/toolbar.js
+const __m_js_views_toolbar_js = (() => {
+  const { h, mount } = __m_js_dom_js;
+  const { icon } = __m_js_icons_js;
+  const { recall, remember } = __m_js_store_js;
+
+  const MODES = [
+    { id: 'range', label: 'Branch' },
+    { id: 'staged', label: 'Staged' },
+    { id: 'worktree', label: 'Working tree' },
+  ];
+  const PREFS = 'changerisk.form';
+
+  function refOptions(refs, selected) {
+    const local = refs.filter((r) => r.kind === 'branch');
+    const remote = refs.filter((r) => r.kind === 'remote');
+    const tags = refs.filter((r) => r.kind === 'tag');
+    const group = (label, items) =>
+      items.length
+        ? h('optgroup', { label }, items.map((r) => h('option', { value: r.name, selected: r.name === selected || null }, r.name)))
+        : null;
+    return [group('Branches', local), group('Remote branches', remote), group('Tags', tags)];
+  }
+
+  /** The strip at the top of the page where a new analysis is set up and started. */
+  function renderToolbar(root, { repo, busy, error, onAnalyze }) {
+    const saved = recall(PREFS, {});
+    const refs = repo.refs;
+    const names = new Set(refs.map((r) => r.name));
+    const head0 = names.has(saved.head) ? saved.head : repo.branch && names.has(repo.branch) ? repo.branch : 'HEAD';
+    const base0 = names.has(saved.base) ? saved.base : repo.default_base || (refs[0] && refs[0].name) || '';
+    const state = { mode: saved.mode || 'range', history: saved.history !== false };
+
+    const baseSel = h('select', { id: 'f-base', name: 'base', 'aria-describedby': 'f-hint' }, refOptions(refs, base0));
+    const headSel = h(
+      'select',
+      { id: 'f-head', name: 'head' },
+      h('option', { value: 'HEAD', selected: head0 === 'HEAD' || null }, repo.branch ? `HEAD (${repo.branch})` : 'HEAD'),
+      refOptions(refs, head0),
+    );
+    const refsDisabled = () => state.mode !== 'range';
+
+    const modeGroup = h(
+      'div',
+      { class: 'segmented', role: 'radiogroup', 'aria-label': 'What to analyse' },
+      MODES.map((m) =>
+        h(
+          'label',
+          { class: 'seg' },
+          h('input', {
+            type: 'radio',
+            name: 'mode',
+            value: m.id,
+            checked: state.mode === m.id || null,
+            onChange: () => {
+              state.mode = m.id;
+              sync();
+            },
+          }),
+          h('span', null, m.label),
+        ),
+      ),
+    );
+    const history = h('input', {
+      type: 'checkbox',
+      id: 'f-history',
+      checked: state.history || null,
+      onChange: (e) => { state.history = e.target.checked; },
+    });
+    const hint = h('p', { class: 'toolbar-hint', id: 'f-hint' });
+    const submit = h('button', { type: 'submit', class: 'btn btn-primary', disabled: busy || null }, busy ? 'Analysing…' : 'Analyse');
+
+    function sync() {
+      const off = refsDisabled();
+      baseSel.disabled = off;
+      headSel.disabled = off;
+      hint.textContent = {
+        range: 'Compares the merge base of the two refs with the head, which is what a pull request shows.',
+        staged: 'Looks at what is staged for the next commit, against HEAD.',
+        worktree: 'Looks at every uncommitted change, including new files, against HEAD.',
+      }[state.mode];
+    }
+
+    const form = h(
+      'form',
+      {
+        class: 'toolbar-form',
+        novalidate: true,
+        onSubmit: (event) => {
+          event.preventDefault();
+          const values = { mode: state.mode, base: baseSel.value, head: headSel.value, history: state.history };
+          remember(PREFS, values);
+          onAnalyze(state.mode === 'range' ? values : { mode: state.mode, history: state.history });
+        },
+      },
+      h('div', { class: 'field' }, h('label', { for: 'f-base' }, 'Merge into'), baseSel),
+      h('span', { class: 'field-join', 'aria-hidden': 'true' }, '←'),
+      h('div', { class: 'field' }, h('label', { for: 'f-head' }, 'Change'), headSel),
+      h('div', { class: 'field field-mode' }, h('span', { class: 'label', id: 'f-mode-label' }, 'Analyse'), modeGroup),
+      submit,
+    );
+
+    // On a phone the form folds away so the report is the first thing on screen.
+    const narrow = window.matchMedia('(max-width: 700px)');
+    const wrapper = h(
+      'details',
+      { class: 'toolbar-details', open: !narrow.matches || error || busy || null },
+      h('summary', { class: 'toolbar-summary' }, h('span', null, 'Analyse a change'), icon('chevron', 14)),
+      h('div', { class: 'toolbar-body' }, form, h('div', { class: 'toolbar-foot' }, hint, h('label', { class: 'check', for: 'f-history' }, history, 'Include history signals'))),
+    );
+    narrow.addEventListener('change', (event) => { wrapper.open = !event.matches; });
+
+    mount(root, wrapper, error ? h('p', { class: 'form-error', role: 'alert' }, icon('x', 14), error) : null);
+    sync();
+  }
+  return { renderToolbar };
+})();
+
+// js/format.js
+const __m_js_format_js = (() => {
+  // Pure formatting helpers. Nothing here touches the DOM, so they run under `node --test`.
+
+  const intFormat = new Intl.NumberFormat('en');
+
+  function fmtInt(n) {
+    return intFormat.format(Number(n) || 0);
+  }
+
+  function fmtPoints(p) {
+    const n = Number(p) || 0;
+    return n.toFixed(1);
+  }
+
+  function plural(n, one, many) {
+    return `${fmtInt(n)} ${n === 1 ? one : (many || `${one}s`)}`;
+  }
+
+  function clamp(n, lo, hi) {
+    return Math.min(hi, Math.max(lo, n));
+  }
+
+  function splitPath(path) {
+    const i = path.lastIndexOf('/');
+    return i < 0 ? { dir: '', name: path } : { dir: path.slice(0, i + 1), name: path.slice(i + 1) };
+  }
+
+  function shortDate(iso, now = new Date()) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const sameYear = d.getFullYear() === now.getFullYear();
+    return new Intl.DateTimeFormat('en', {
+      day: 'numeric',
+      month: 'short',
+      ...(sameYear ? {} : { year: 'numeric' }),
+    }).format(d);
+  }
+
+  function fullDate(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(d);
+  }
+
+  function relTime(iso, now = Date.now()) {
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return '';
+    const seconds = Math.round((now - t) / 1000);
+    if (seconds < 45) return 'just now';
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours} h ago`;
+    const days = Math.round(hours / 24);
+    if (days === 1) return 'yesterday';
+    if (days < 14) return `${days} days ago`;
+    return shortDate(iso, new Date(now));
+  }
+
+  function sentenceCase(text) {
+    return text ? text[0].toUpperCase() + text.slice(1) : '';
+  }
+
+  function shortRef(ref, max = 34) {
+    if (!ref || ref.length <= max) return ref || '';
+    const head = Math.ceil((max - 1) / 2);
+    const tail = Math.floor((max - 1) / 2);
+    return `${ref.slice(0, head)}…${ref.slice(ref.length - tail)}`;
+  }
+
+  /** Turn a report's test plan into a Markdown checklist for pasting into a ticket. */
+  function planAsChecklist(plan, done = new Set()) {
+    const rows = plan.map((s) => `- [${done.has(s.text) ? 'x' : ' '}] ${s.text}`);
+    return rows.join('\n');
+  }
+  return { fmtInt, fmtPoints, plural, clamp, splitPath, shortDate, fullDate, relTime, sentenceCase, shortRef, planAsChecklist };
+})();
+
+// js/views/rail.js
+const __m_js_views_rail_js = (() => {
+  const { h, mount } = __m_js_dom_js;
+  const { levelShape, icon } = __m_js_icons_js;
+  const { fmtInt, relTime, fullDate, shortRef } = __m_js_format_js;
+
+  /** The list of past analyses, newest first. */
+  function renderRail(root, { reports, selectedId, onDelete }) {
+    const confirming = new Set();
+
+    function draw() {
+      mount(
+        root,
+        h(
+          'div',
+          { class: 'rail-head' },
+          h('h2', { class: 'eyebrow' }, 'Recent analyses'),
+          h('span', { class: 'rail-count num dim' }, reports.length),
+        ),
+        reports.length
+          ? h('ul', { class: 'rail-list' }, reports.map((r) => item(r)))
+          : h('p', { class: 'rail-empty' }, 'Nothing analysed yet. Pick two refs above and press Analyse.'),
+      );
+    }
+
+    function item(r) {
+      const selected = r.id === selectedId;
+      const asking = confirming.has(r.id);
+      return h(
+        'li',
+        { class: 'rail-li', data: { selected: String(selected) } },
+        h(
+          'a',
+          { class: 'rail-item', href: `#/r/${r.id}`, 'aria-current': selected ? 'true' : null, data: { level: r.level } },
+          h('span', { class: 'rail-score' }, levelShape(r.level, 13), h('span', { class: 'rail-num num' }, r.score)),
+          h(
+            'span',
+            { class: 'rail-meta' },
+            h('span', { class: 'rail-ref mono', title: r.head }, shortRef(r.head, 30)),
+            h(
+              'span',
+              { class: 'rail-sub' },
+              h('time', { datetime: r.generated_at, title: fullDate(r.generated_at) }, relTime(r.generated_at)),
+              ` · ${fmtInt(r.files)} files`,
+              r.gate_failed ? h('span', { class: 'rail-failed' }, ' · gate failed') : null,
+            ),
+          ),
+        ),
+        asking
+          ? h(
+              'span',
+              { class: 'rail-confirm' },
+              h('button', { type: 'button', class: 'mini danger', onClick: () => onDelete(r.id) }, 'Delete'),
+              h('button', { type: 'button', class: 'mini', onClick: () => { confirming.delete(r.id); draw(); } }, 'Keep'),
+            )
+          : h(
+              'button',
+              {
+                type: 'button',
+                class: 'rail-del',
+                title: 'Delete this analysis',
+                'aria-label': `Delete the analysis of ${r.head}`,
+                onClick: () => {
+                  confirming.add(r.id);
+                  draw();
+                },
+              },
+              icon('x', 12),
+            ),
+      );
+    }
+
+    draw();
+  }
+  return { renderRail };
+})();
+
+// js/views/ruler.js
+const __m_js_views_ruler_js = (() => {
+  const { h } = __m_js_dom_js;
+  const { BANDS, GATE_SCORE, LEVEL_LABEL } = __m_js_model_js;
+  const { levelShape } = __m_js_icons_js;
+  const { clamp } = __m_js_format_js;
+
+  const SWEEP_MS = 760;
+
+  /**
+   * The risk ruler: a 0-100 scale cut into the four level bands, with the result marked on it
+   * and the build gate marked underneath. The fill sweeps from the left once, in step with the marker.
+   */
+  function ruler({ score, level, failOn }) {
+    const gateAt = failOn && failOn !== 'never' ? GATE_SCORE[failOn] : null;
+    const value = clamp(score, 0, 100);
+
+    const bands = BANDS.map((band) => {
+      const filled = clamp(value - band.from, 0, band.to - band.from);
+      const startsAt = value ? (Math.min(value, band.from) / value) * SWEEP_MS : 0;
+      const lasts = value ? (filled / value) * SWEEP_MS : 0;
+      return h(
+        'div',
+        { class: 'band', data: { level: band.id } },
+        h('div', { class: 'band-track' }, h('i', {
+          class: 'band-fill',
+          vars: {
+            '--fill': `${(filled / (band.to - band.from)) * 100}%`,
+            '--delay': `${startsAt.toFixed(0)}ms`,
+            '--dur': `${lasts.toFixed(0)}ms`,
+          },
+        })),
+      );
+    });
+
+    const names = BANDS.map((band) =>
+      h(
+        'span',
+        { class: 'scale-name', data: { level: band.id }, vars: { '--at': `${(band.from + band.to) / 2}%` } },
+        levelShape(band.id, 10, { label: false }),
+        LEVEL_LABEL[band.id],
+      ),
+    );
+    const numbers = [0, 25, 50, 75, 100].map((n) =>
+      h('span', { class: 'scale-num num', vars: { '--at': `${n}%` }, data: { edge: n === 0 ? 'start' : n === 100 ? 'end' : 'mid' } }, n),
+    );
+
+    const description =
+      `Score ${score} out of 100, ${level}.` +
+      (gateAt !== null ? ` The gate fails from ${failOn}, at ${gateAt}.` : ' The gate is off.');
+
+    return h(
+      'figure',
+      { class: 'ruler', role: 'img', 'aria-label': description, data: { level } },
+      h(
+        'div',
+        { class: 'ruler-flag', vars: { '--at': `${value}%`, '--sweep': `${SWEEP_MS}ms` } },
+        h('span', { class: 'ruler-flag-label num' }, score),
+      ),
+      h('div', { class: 'ruler-bands' }, bands),
+      h('div', { class: 'ruler-marker', vars: { '--at': `${value}%`, '--sweep': `${SWEEP_MS}ms` } }),
+      h('div', { class: 'ruler-ticks' }),
+      h('div', { class: 'ruler-scale' }, numbers, names),
+      gateAt !== null
+        ? h(
+            'div',
+            { class: 'ruler-gate', vars: { '--at': `${gateAt}%` }, data: { side: gateAt > 62 ? 'left' : 'right' } },
+            h('span', { class: 'ruler-gate-notch' }),
+            h('span', { class: 'ruler-gate-label' }, `Gate: fails from ${LEVEL_LABEL[failOn]} (${gateAt})`),
+          )
+        : h('div', { class: 'ruler-gate ruler-gate-off' }, h('span', { class: 'ruler-gate-label' }, 'Gate is off')),
+    );
+  }
+  return { ruler };
+})();
+
+// js/clipboard.js
+const __m_js_clipboard_js = (() => {
+  const { announce } = __m_js_dom_js;
+
+  /** Copy text. Falls back to a hidden textarea where the async clipboard API is refused. */
+  async function copyText(text, what = 'Copied') {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.className = 'visually-hidden';
+      document.body.append(area);
+      area.select();
+      try {
+        ok = document.execCommand('copy');
+      } catch {
+        ok = false;
+      }
+      area.remove();
+    }
+    announce(ok ? `${what} to the clipboard.` : 'Copying failed. Select the text and copy it by hand.');
+    return ok;
+  }
+  return { copyText };
+})();
+
+// js/views/verdict.js
+const __m_js_views_verdict_js = (() => {
+  const { h, announce } = __m_js_dom_js;
+  const { LEVEL_LABEL, rangeLabel } = __m_js_model_js;
+  const { levelShape, icon } = __m_js_icons_js;
+  const { ruler } = __m_js_views_ruler_js;
+  const { fmtInt, fmtPoints, fullDate, plural, relTime, shortRef } = __m_js_format_js;
+  const { copyText } = __m_js_clipboard_js;
+  const { api, fetchText } = __m_js_api_js;
+
+  function changeHeader(report, { onRerun, canExport }) {
+    const range = rangeLabel(report.range);
+    const sha = report.range.head_sha ? report.range.head_sha.slice(0, 8) : null;
+    const meta = [
+      plural(report.stats.files, 'file'),
+      h('span', { class: 'delta' }, h('span', { class: 'add num' }, `+${fmtInt(report.stats.additions)}`), ' ', h('span', { class: 'del num' }, `−${fmtInt(report.stats.deletions)}`)),
+      report.stats.commits ? plural(report.stats.commits, 'commit') : null,
+      h('time', { datetime: report.generated_at, title: fullDate(report.generated_at) }, `analysed ${relTime(report.generated_at)}`),
+    ].filter(Boolean);
+
+    const actions = [];
+    if (canExport && report.id) {
+      actions.push(
+        h('button', { type: 'button', class: 'btn', onClick: () => copyMarkdown(report) }, icon('copy', 15), 'Copy Markdown'),
+        exportLinks(report),
+      );
+    }
+    if (onRerun) {
+      actions.push(h('button', { type: 'button', class: 'btn', onClick: onRerun }, icon('refresh', 15), 'Run again'));
+    }
+
+    return h(
+      'section',
+      { class: 'change', 'aria-label': 'Change under review' },
+      h(
+        'h1',
+        { class: 'change-refs' },
+        h('span', { class: `ref ${range.plain ? 'ref-plain' : ''}`, title: range.from }, shortRef(range.from)),
+        h('span', { class: 'ref-join', 'aria-label': 'compared with' }, range.plain ? 'vs' : '…'),
+        h('span', { class: 'ref', title: range.to }, shortRef(range.to)),
+        sha ? h('span', { class: 'sha mono', title: 'Head commit' }, sha) : null,
+      ),
+      h(
+        'div',
+        { class: 'change-row' },
+        h('p', { class: 'change-meta' }, meta.flatMap((m, i) => (i ? [h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'), m] : [m]))),
+        actions.length ? h('div', { class: 'change-actions' }, actions) : null,
+      ),
+    );
+  }
+
+  async function copyMarkdown(report) {
+    try {
+      const text = await fetchText(api.exportUrl(report.id, 'markdown'));
+      await copyText(text, 'Markdown copied');
+    } catch (error) {
+      announce(error.message);
+    }
+  }
+
+  function exportLinks(report) {
+    const link = (format, label) =>
+      h('a', { class: 'menu-item', href: api.exportUrl(report.id, format), download: '' }, label);
+    return h(
+      'details',
+      { class: 'menu' },
+      h('summary', { class: 'btn' }, icon('download', 15), 'Export', icon('chevron', 12)),
+      h('div', { class: 'menu-pop' }, link('html', 'HTML report (one file)'), link('json', 'JSON'), link('sarif', 'SARIF for code scanning'), link('markdown', 'Markdown')),
+    );
+  }
+
+  function verdictPanel(report) {
+    const level = report.level;
+    const gate = report.gate;
+    const gateChip =
+      gate.fail_on === 'never'
+        ? h('span', { class: 'gate-chip', data: { state: 'off' } }, 'Gate off')
+        : h('span', { class: 'gate-chip', data: { state: gate.failed ? 'failed' : 'passed' } }, gate.failed ? 'Gate failed' : 'Gate passed');
+
+    return h(
+      'section',
+      { class: 'verdict', data: { level }, 'aria-labelledby': 'verdict-heading' },
+      h(
+        'div',
+        { class: 'verdict-score' },
+        h('div', { class: 'score-num', 'aria-hidden': 'true' }, report.score),
+        h('div', { class: 'score-of' }, 'out of 100'),
+      ),
+      h(
+        'div',
+        { class: 'verdict-body' },
+        h(
+          'h2',
+          { class: 'verdict-level', id: 'verdict-heading' },
+          levelShape(level, 22, { label: false }),
+          h('span', null, `${LEVEL_LABEL[level]} risk`),
+          gateChip,
+        ),
+        h('p', { class: 'verdict-text' }, report.verdict),
+        h('p', { class: 'verdict-next' }, h('span', { class: 'eyebrow' }, 'Next'), report.recommendation),
+      ),
+      h('div', { class: 'verdict-ruler' }, ruler({ score: report.score, level, failOn: gate.fail_on })),
+      scoreExplainer(report),
+      report.notes.length
+        ? h('ul', { class: 'notes' }, report.notes.map((n) => h('li', null, n)))
+        : null,
+    );
+  }
+
+  function scoreExplainer(report) {
+    return h(
+      'details',
+      { class: 'how' },
+      h('summary', null, 'How this score is built'),
+      h(
+        'div',
+        { class: 'how-body' },
+        h(
+          'p',
+          null,
+          'Each finding is worth points by severity: low 3, medium 8, high 16, critical 30. A rule that fires again counts for half, then a quarter, so ten similar hits do not bury everything else.',
+        ),
+        h(
+          'p',
+          null,
+          `The findings below add up to ${fmtPoints(report.points)} points. The score is `,
+          h('code', null, '100 × (1 − e^(−points/40))'),
+          `, which gives ${report.score}. It saturates smoothly and never passes 100.`,
+        ),
+        h('p', null, 'A critical finding makes the level at least High, and a high finding at least Moderate, however the points add up.'),
+        report.floor_note ? h('p', { class: 'floor' }, report.floor_note) : null,
+      ),
+    );
+  }
+  return { changeHeader, verdictPanel };
+})();
+
+// js/views/reasons.js
+const __m_js_views_reasons_js = (() => {
+  const { h, mount } = __m_js_dom_js;
+  const { SEVERITY_LABEL, SEVERITY_LEVEL } = __m_js_model_js;
+  const { levelShape } = __m_js_icons_js;
+  const { fmtInt, fmtPoints, plural } = __m_js_format_js;
+
+  const FIRST_PAGE = 8;
+  const EVIDENCE_INLINE = 3;
+
+  /** The ranked list of reasons: the heart of the report. */
+  function reasonsSection(report) {
+    const state = { category: 'all', expanded: false };
+    const section = h('section', { class: 'panel reasons', 'aria-labelledby': 'reasons-heading' });
+
+    function draw() {
+      const all = report.findings;
+      const visible = all.filter((f) => state.category === 'all' || f.category === state.category);
+      const shown = state.expanded ? visible : visible.slice(0, FIRST_PAGE);
+      const total = report.points || 1;
+
+      mount(
+        section,
+        h(
+          'header',
+          { class: 'panel-head' },
+          h('h2', { id: 'reasons-heading' }, 'Why this needs extra testing'),
+          h(
+            'p',
+            { class: 'panel-sub' },
+            all.length
+              ? `${plural(all.length, 'finding')}, ranked by points. They add up to ${fmtPoints(report.points)}.`
+              : 'No rule found anything worth flagging in this change.',
+          ),
+        ),
+        all.length ? categoryFilter(report, state, draw) : emptyState(),
+        h(
+          'ol',
+          { class: 'reason-list' },
+          shown.map((f, i) => reason(f, all.indexOf(f) + 1, total, i === 0 && state.category === 'all')),
+        ),
+        visible.length > FIRST_PAGE
+          ? h(
+              'button',
+              {
+                type: 'button',
+                class: 'btn btn-quiet more-btn',
+                'aria-expanded': String(state.expanded),
+                onClick: () => {
+                  state.expanded = !state.expanded;
+                  draw();
+                },
+              },
+              state.expanded ? 'Show fewer' : `Show all ${fmtInt(visible.length)}`,
+            )
+          : null,
+      );
+    }
+    draw();
+    return section;
+  }
+
+  function emptyState() {
+    return h(
+      'p',
+      { class: 'empty' },
+      'Normal review and the usual test run are enough. Nothing here touches configuration, tests, dependencies, secrets, pipelines or the database in a risky way.',
+    );
+  }
+
+  function categoryFilter(report, state, redraw) {
+    const cats = [{ id: 'all', label: 'All', findings: report.findings.length }, ...report.categories];
+    if (cats.length <= 2) return null;
+    return h(
+      'div',
+      { class: 'chips', role: 'group', 'aria-label': 'Filter reasons by area' },
+      cats.map((c) =>
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'chip',
+            'aria-pressed': String(state.category === c.id),
+            onClick: () => {
+              state.category = c.id;
+              state.expanded = false;
+              redraw();
+            },
+          },
+          c.label,
+          h('span', { class: 'chip-n num' }, c.findings),
+        ),
+      ),
+    );
+  }
+
+  function reason(f, rank, total, open) {
+    const level = SEVERITY_LEVEL[f.severity];
+    const inline = f.evidence.slice(0, EVIDENCE_INLINE);
+    const rest = f.evidence.slice(EVIDENCE_INLINE);
+    const share = Math.max(2, Math.round((f.points / total) * 100));
+
+    return h(
+      'li',
+      { class: 'reason', id: f.id, data: { level } },
+      h('div', { class: 'reason-rank num', 'aria-label': `Rank ${rank}` }, rank),
+      h(
+        'div',
+        { class: 'reason-main' },
+        h(
+          'div',
+          { class: 'reason-head' },
+          h(
+            'h3',
+            { class: 'reason-title' },
+            levelShape(level, 15, { label: false }),
+            h('span', { class: 'reason-name' }, f.title),
+            h('span', { class: 'sev-word' }, SEVERITY_LABEL[f.severity]),
+          ),
+          h(
+            'div',
+            { class: 'reason-pts', title: `${fmtPoints(f.points)} of ${fmtPoints(total)} points` },
+            h('span', { class: 'pts num' }, `+${fmtPoints(f.points)}`),
+            h('span', { class: 'share', 'aria-hidden': 'true' }, h('i', { vars: { '--w': `${share}%` } })),
+          ),
+        ),
+        h('p', { class: 'reason-detail' }, f.detail),
+        inline.length ? h('ul', { class: 'evidence' }, inline.map(evidenceRow)) : null,
+        h(
+          'details',
+          { class: 'more', open: open || null },
+          h('summary', null, 'Why it matters, and what to test'),
+          h(
+            'div',
+            { class: 'more-body' },
+            h('p', { class: 'why' }, f.why),
+            f.test_focus.length
+              ? h('ul', { class: 'tests' }, f.test_focus.map((t) => h('li', null, t)))
+              : null,
+            rest.length
+              ? h('ul', { class: 'evidence evidence-rest' }, rest.map(evidenceRow))
+              : null,
+            h('p', { class: 'rule-id mono' }, f.rule, ' · ', f.scope === 'change' ? 'about the whole change' : plural(f.paths.length, 'file')),
+          ),
+        ),
+      ),
+    );
+  }
+
+  function evidenceRow(ev) {
+    const where = ev.line ? `${ev.path}:${ev.line}` : ev.path;
+    return h(
+      'li',
+      { class: 'ev', data: { side: ev.side } },
+      h('span', { class: 'ev-loc mono', title: where }, where),
+      h('span', { class: 'ev-sign', 'aria-label': ev.side === 'old' ? 'removed' : 'added' }, ev.side === 'old' ? '−' : '+'),
+      h('code', { class: 'ev-text' }, ev.text),
+    );
+  }
+  return { reasonsSection };
+})();
+
+// js/views/plan.js
+const __m_js_views_plan_js = (() => {
+  const { h, mount } = __m_js_dom_js;
+  const { groupPlan } = __m_js_model_js;
+  const { icon } = __m_js_icons_js;
+  const { recall, remember } = __m_js_store_js;
+  const { copyText } = __m_js_clipboard_js;
+  const { planAsChecklist } = __m_js_format_js;
+
+  /** The test plan as a checklist. What you tick is remembered per report, in this browser only. */
+  function planSection(report) {
+    const key = `changerisk.plan.${report.id || report.generated_at}`;
+    const done = new Set(recall(key, []));
+    const steps = report.test_plan;
+    const section = h('section', { class: 'panel plan', 'aria-labelledby': 'plan-heading' });
+
+    function save() {
+      remember(key, [...done]);
+    }
+
+    function draw() {
+      const groups = groupPlan(steps);
+      mount(
+        section,
+        h(
+          'header',
+          { class: 'panel-head' },
+          h('h2', { id: 'plan-heading' }, 'Test plan'),
+          h(
+            'p',
+            { class: 'panel-sub' },
+            steps.length
+              ? 'Collected from the findings above, most urgent first. Tick them off as you go.'
+              : 'Nothing beyond the normal test run.',
+          ),
+          steps.length ? progress(done.size, steps.length) : null,
+        ),
+        groups.map((g) =>
+          h(
+            'div',
+            { class: 'plan-group' },
+            h('h3', { class: 'eyebrow plan-group-title' }, g.title, h('span', { class: 'plan-hint' }, g.hint)),
+            h(
+              'ul',
+              { class: 'plan-list' },
+              g.steps.map((step) => {
+                const id = `step-${steps.indexOf(step)}`;
+                return h(
+                  'li',
+                  { class: 'plan-item' },
+                  h('input', {
+                    type: 'checkbox',
+                    id,
+                    checked: done.has(step.text) || null,
+                    onChange: (event) => {
+                      if (event.target.checked) done.add(step.text);
+                      else done.delete(step.text);
+                      save();
+                      updateProgress();
+                    },
+                  }),
+                  h('label', { for: id }, step.text, h('span', { class: 'plan-rules mono' }, step.rules.join(' '))),
+                );
+              }),
+            ),
+          ),
+        ),
+        steps.length
+          ? h(
+              'button',
+              { type: 'button', class: 'btn btn-quiet', onClick: () => copyText(planAsChecklist(steps, done), 'Checklist copied') },
+              icon('copy', 15),
+              'Copy as checklist',
+            )
+          : null,
+      );
+    }
+
+    function updateProgress() {
+      const bar = section.querySelector('.progress');
+      if (bar) bar.replaceWith(progress(done.size, steps.length));
+    }
+
+    draw();
+    return section;
+  }
+
+  function progress(done, total) {
+    return h(
+      'p',
+      { class: 'progress' },
+      h('span', { class: 'progress-track', 'aria-hidden': 'true' }, h('i', { vars: { '--w': `${total ? (done / total) * 100 : 0}%` } })),
+      h('span', { class: 'progress-text num' }, `${done} of ${total} done`),
+    );
+  }
+  return { planSection };
+})();
+
+// js/tooltip.js
+const __m_js_tooltip_js = (() => {
+  // One shared tooltip element. It enhances hover and focus; nothing depends on it for meaning.
+
+  function node() {
+    return document.getElementById('tip');
+  }
+
+  function showTip(x, y, content) {
+    const tip = node();
+    if (!tip) return;
+    tip.replaceChildren(...[].concat(content));
+    tip.hidden = false;
+    const box = tip.getBoundingClientRect();
+    const left = Math.min(Math.max(8, x - box.width / 2), window.innerWidth - box.width - 8);
+    const above = y - box.height - 14;
+    const top = above < 8 ? y + 18 : above;
+    tip.style.setProperty('--tip-x', `${Math.round(left)}px`);
+    tip.style.setProperty('--tip-y', `${Math.round(top)}px`);
+  }
+
+  function hideTip() {
+    const tip = node();
+    if (tip) tip.hidden = true;
+  }
+
+  /** Show `content()` while the pointer is over `el` or it has keyboard focus. */
+  function attachTip(el, content) {
+    const at = (event) => {
+      const r = el.getBoundingClientRect();
+      const x = event.clientX || r.left + r.width / 2;
+      const y = event.clientY || r.top;
+      showTip(x, event.clientX ? y : r.top, content());
+    };
+    el.addEventListener('pointermove', at);
+    el.addEventListener('pointerleave', hideTip);
+    el.addEventListener('focus', at);
+    el.addEventListener('blur', hideTip);
+  }
+  return { showTip, hideTip, attachTip };
+})();
+
+// js/views/breakdown.js
+const __m_js_views_breakdown_js = (() => {
+  const { h } = __m_js_dom_js;
+  const { fmtPoints, plural } = __m_js_format_js;
+  const { attachTip } = __m_js_tooltip_js;
+  const { icon } = __m_js_icons_js;
+
+  /**
+   * Points per area as horizontal bars. One series, so one colour; values sit at the bar tips.
+   * The same numbers are available as a table for anyone who wants them that way.
+   */
+  function breakdownPanel(report) {
+    const rows = report.categories;
+    const max = Math.max(1, ...rows.map((r) => r.points));
+
+    const body = rows.length
+      ? h(
+          'ul',
+          { class: 'cats' },
+          rows.map((row) => {
+            const item = h(
+              'li',
+              { class: 'cat', tabindex: '0', 'aria-label': `${row.label}: ${fmtPoints(row.points)} points from ${plural(row.findings, 'finding')}` },
+              h('span', { class: 'cat-label' }, row.label),
+              h(
+                'span',
+                { class: 'cat-bar-area' },
+                h('span', { class: 'cat-bar', vars: { '--p': String(row.points / max) } }),
+                h('span', { class: 'cat-value num' }, fmtPoints(row.points)),
+              ),
+            );
+            attachTip(item, () => [
+              h('strong', null, row.label),
+              h('div', null, `${fmtPoints(row.points)} points from ${plural(row.findings, 'finding')}`),
+            ]);
+            return item;
+          }),
+        )
+      : h('p', { class: 'empty' }, 'No points scored in any area.');
+
+    const table = h(
+      'details',
+      { class: 'twin' },
+      h('summary', null, icon('table', 14), 'View as table'),
+      h(
+        'table',
+        { class: 'plain-table' },
+        h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Area'), h('th', { scope: 'col', class: 'r' }, 'Findings'), h('th', { scope: 'col', class: 'r' }, 'Points'))),
+        h('tbody', null, rows.map((r) => h('tr', null, h('th', { scope: 'row' }, r.label), h('td', { class: 'r num' }, r.findings), h('td', { class: 'r num' }, fmtPoints(r.points))))),
+      ),
+    );
+
+    return h(
+      'section',
+      { class: 'panel chart-panel', 'aria-labelledby': 'cats-heading' },
+      h('header', { class: 'panel-head' }, h('h2', { id: 'cats-heading' }, 'Where the points come from'), h('p', { class: 'panel-sub' }, 'Points per area of the change.')),
+      body,
+      rows.length ? table : null,
+    );
+  }
+  return { breakdownPanel };
+})();
+
+// js/views/trend.js
+const __m_js_views_trend_js = (() => {
+  const { h, svg, mount } = __m_js_dom_js;
+  const { GATE_SCORE, LEVEL_LABEL } = __m_js_model_js;
+  const { clamp, fullDate, plural, shortDate } = __m_js_format_js;
+  const { hideTip, showTip } = __m_js_tooltip_js;
+  const { icon } = __m_js_icons_js;
+
+  const MAX_POINTS = 30;
+
+  /**
+   * Score over the most recent analyses: a thin line, a hairline grid, the gate drawn as a
+   * solid rule, and the selected analysis marked. Hover or focus a point for details.
+   */
+  function trendChart({ reports, selectedId, failOn, onSelect, height = 188 }) {
+    const series = [...reports].reverse().slice(-MAX_POINTS); // oldest first
+    const wrap = h('div', { class: 'trend' });
+    if (series.length < 2) {
+      return h(
+        'div',
+        { class: 'trend trend-empty' },
+        h('p', { class: 'empty' }, series.length ? 'One analysis so far. The trend appears after the second.' : 'No analyses yet.'),
+      );
+    }
+
+    const gate = failOn && failOn !== 'never' ? GATE_SCORE[failOn] : null;
+    let drawnWidth = 0;
+
+    function draw(width) {
+      drawnWidth = width;
+      const m = { top: 14, right: 40, bottom: 26, left: 30 };
+      const w = Math.max(240, width);
+      const iw = w - m.left - m.right;
+      const ih = height - m.top - m.bottom;
+      const x = (i) => m.left + (series.length === 1 ? iw / 2 : (i / (series.length - 1)) * iw);
+      const y = (v) => m.top + ih - (clamp(v, 0, 100) / 100) * ih;
+
+      const line = series.map((r, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(r.score).toFixed(1)}`).join(' ');
+      const area = `${line} L${x(series.length - 1).toFixed(1)} ${y(0)} L${x(0).toFixed(1)} ${y(0)} Z`;
+
+      const grid = [0, 25, 50, 75, 100].map((v) =>
+        svg('g', null,
+          svg('line', { class: v === 0 ? 'axis' : 'grid', x1: m.left, x2: w - m.right, y1: y(v), y2: y(v) }),
+          svg('text', { class: 'tick', x: m.left - 8, y: y(v) + 4, 'text-anchor': 'end' }, v),
+        ),
+      );
+
+      const crosshair = svg('line', { class: 'crosshair', y1: m.top, y2: y(0), x1: 0, x2: 0, visibility: 'hidden' });
+      const dots = series.map((r, i) => {
+        const selected = r.id === selectedId;
+        const dot = svg('g', { class: `pt ${selected ? 'is-selected' : ''}`, data: { level: r.level }, tabindex: '0', role: 'link', 'aria-label': `${shortDate(r.generated_at)}, ${r.head}, score ${r.score}, ${r.level}. Open this analysis.` },
+          svg('circle', { class: 'hit', cx: x(i), cy: y(r.score), r: 13 }),
+          svg('circle', { class: 'dot', cx: x(i), cy: y(r.score), r: selected ? 6 : 4.5 }),
+        );
+        const show = () => {
+          crosshair.setAttribute('x1', x(i));
+          crosshair.setAttribute('x2', x(i));
+          crosshair.setAttribute('visibility', 'visible');
+          const box = dot.getBoundingClientRect();
+          showTip(box.left + box.width / 2, box.top + box.height / 2, [
+            h('strong', null, r.head),
+            h('div', null, `Score ${r.score}, ${LEVEL_LABEL[r.level].toLowerCase()} risk`),
+            h('div', { class: 'tip-dim' }, `${fullDate(r.generated_at)} · ${plural(r.findings, 'finding')}`),
+          ]);
+        };
+        const leave = () => {
+          crosshair.setAttribute('visibility', 'hidden');
+          hideTip();
+        };
+        dot.addEventListener('pointerenter', show);
+        dot.addEventListener('pointerleave', leave);
+        dot.addEventListener('focus', show);
+        dot.addEventListener('blur', leave);
+        dot.addEventListener('click', () => onSelect && onSelect(r.id));
+        dot.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onSelect && onSelect(r.id);
+          }
+        });
+        return dot;
+      });
+
+      const last = series[series.length - 1];
+      const picked = series.find((r) => r.id === selectedId) || last;
+      const pickedIdx = series.indexOf(picked);
+      const label = svg('text', { class: 'end-label', x: x(pickedIdx), y: y(picked.score) - 12, 'text-anchor': 'middle' }, picked.score);
+
+      const chart = svg(
+        'svg',
+        { class: 'trend-svg', viewBox: `0 0 ${w} ${height}`, width: w, height, role: 'group', 'aria-label': 'Score of recent analyses, oldest to newest' },
+        grid,
+        gate !== null
+          ? svg('g', null,
+              svg('line', { class: 'gate-line', x1: m.left, x2: w - m.right, y1: y(gate), y2: y(gate) }),
+              svg('text', { class: 'gate-text', x: w - m.right + 6, y: y(gate) + 4 }, 'gate'))
+          : null,
+        svg('path', { class: 'area', d: area }),
+        svg('path', { class: 'line', d: line }),
+        crosshair,
+        dots,
+        label,
+        svg('text', { class: 'tick', x: m.left, y: height - 6, 'text-anchor': 'start' }, shortDate(series[0].generated_at)),
+        svg('text', { class: 'tick', x: w - m.right, y: height - 6, 'text-anchor': 'end' }, shortDate(last.generated_at)),
+      );
+      mount(wrap, chart);
+    }
+
+    // Draw once the element has a width, and again whenever the container resizes.
+    queueMicrotask(() => {
+      draw(wrap.getBoundingClientRect().width || 640);
+      if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver((entries) => {
+          const width = Math.round(entries[0].contentRect.width);
+          if (width && Math.abs(width - drawnWidth) > 1) draw(width);
+        }).observe(wrap);
+      }
+    });
+    return wrap;
+  }
+
+  function trendPanel({ reports, selectedId, failOn, onSelect }) {
+    return h(
+      'section',
+      { class: 'panel chart-panel', 'aria-labelledby': 'trend-heading' },
+      h('header', { class: 'panel-head' }, h('h2', { id: 'trend-heading' }, 'Recent scores'), h('p', { class: 'panel-sub' }, 'Newest on the right. Select a point to open it.')),
+      trendChart({ reports, selectedId, failOn, onSelect }),
+      reports.length > 1 ? trendTable(reports, onSelect) : null,
+    );
+  }
+
+  function trendTable(reports, onSelect) {
+    return h(
+      'details',
+      { class: 'twin' },
+      h('summary', null, icon('table', 14), 'View as table'),
+      h(
+        'table',
+        { class: 'plain-table' },
+        h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'When'), h('th', { scope: 'col' }, 'Branch'), h('th', { scope: 'col', class: 'r' }, 'Score'), h('th', { scope: 'col' }, 'Level'))),
+        h('tbody', null, reports.slice(0, 12).map((r) => h('tr', null, h('td', null, shortDate(r.generated_at)), h('th', { scope: 'row' }, h('a', { href: `#/r/${r.id}`, onClick: () => onSelect && onSelect(r.id) }, r.head)), h('td', { class: 'r num' }, r.score), h('td', null, LEVEL_LABEL[r.level])))),
+      ),
+    );
+  }
+  return { trendChart, trendPanel };
+})();
+
+// js/views/diff.js
+const __m_js_views_diff_js = (() => {
+  const { h } = __m_js_dom_js;
+  const { SEVERITY_LEVEL, flagIndex } = __m_js_model_js;
+  const { severityShape } = __m_js_icons_js;
+
+  /**
+   * A unified diff with the lines the rules quoted marked in the gutter, and the rule's note
+   * under each, like a review comment would be.
+   */
+  function diffView(report, file) {
+    if (!file.hunks || !file.hunks.length) {
+      return h(
+        'p',
+        { class: 'diff-empty' },
+        file.binary
+          ? 'Binary file: no text diff.'
+          : 'No diff is stored for this file. Reports keep diffs only for files with findings.',
+      );
+    }
+    const flags = flagIndex(report, file.path);
+    const rows = [];
+    for (const hunk of file.hunks) {
+      rows.push(
+        h(
+          'tr',
+          { class: 'hunk' },
+          h('td', { colspan: 5 }, `@@ -${hunk.old_start} +${hunk.new_start} @@`, hunk.header ? ` ${hunk.header}` : ''),
+        ),
+      );
+      for (const [kind, oldNo, newNo, text] of hunk.lines) {
+        const hits = (kind === '-' ? flags.get(`o${oldNo}`) : flags.get(`n${newNo}`)) || [];
+        const top = hits.length ? hits.reduce((a, b) => (b.points > a.points ? b : a)) : null;
+        rows.push(
+          h(
+            'tr',
+            { class: `dl ${kind === '+' ? 'add' : kind === '-' ? 'del' : 'ctx'}`, data: { flagged: top ? SEVERITY_LEVEL[top.severity] : null } },
+            h('td', { class: 'flag' }, top ? severityShape(top.severity, 11) : null),
+            h('td', { class: 'ln num' }, oldNo ?? ''),
+            h('td', { class: 'ln num' }, newNo ?? ''),
+            h('td', { class: 'sign', 'aria-label': kind === '+' ? 'added' : kind === '-' ? 'removed' : 'unchanged' }, kind === ' ' ? '' : kind === '-' ? '−' : '+'),
+            h('td', { class: 'code' }, h('code', null, text || ' ')),
+          ),
+        );
+        for (const f of hits) {
+          rows.push(
+            h(
+              'tr',
+              { class: 'note', data: { level: SEVERITY_LEVEL[f.severity] } },
+              h('td', { colspan: 5 }, h('span', { class: 'note-card' }, severityShape(f.severity, 12), h('span', { class: 'note-rule mono' }, f.rule), h('span', { class: 'note-title' }, f.title), h('span', { class: 'note-detail' }, f.detail))),
+            ),
+          );
+        }
+      }
+    }
+    return h(
+      'div',
+      { class: 'diff', role: 'region', 'aria-label': `Diff of ${file.path}`, tabindex: '0' },
+      h('table', { class: 'diff-table' }, h('tbody', null, rows)),
+      file.truncated ? h('p', { class: 'diff-trunc' }, 'The diff is cut here to keep reports small. Open the file in your editor for the rest.') : null,
+    );
+  }
+  return { diffView };
+})();
+
+// js/views/files.js
+const __m_js_views_files_js = (() => {
+  const { h, mount } = __m_js_dom_js;
+  const { STATUS_LABEL, STATUS_LETTER, topSeverity } = __m_js_model_js;
+  const { icon, severityShape } = __m_js_icons_js;
+  const { fmtInt, fmtPoints, plural, splitPath } = __m_js_format_js;
+  const { diffView } = __m_js_views_diff_js;
+
+  const COLLAPSED_LIMIT = 12;
+
+  function filesSection(report) {
+    const files = report.files;
+    const flagged = files.filter((f) => f.findings.length);
+    const state = {
+      flaggedOnly: flagged.length > 0 && files.length > 6,
+      open: new Set(flagged.length ? [flagged[0].path] : []),
+      showAll: false,
+    };
+    const maxLines = Math.max(1, ...files.map((f) => f.additions + f.deletions));
+    const section = h('section', { class: 'panel files', 'aria-labelledby': 'files-heading' });
+    const findingsById = new Map(report.findings.map((f) => [f.id, f]));
+
+    function draw() {
+      const pool = state.flaggedOnly ? flagged : files;
+      const rows = state.showAll ? pool : pool.slice(0, COLLAPSED_LIMIT);
+      mount(
+        section,
+        h(
+          'header',
+          { class: 'panel-head panel-head-split' },
+          h(
+            'div',
+            null,
+            h('h2', { id: 'files-heading' }, 'Changed files'),
+            h('p', { class: 'panel-sub' }, `${plural(files.length, 'file')}, ${flagged.length} with findings. Riskiest first.`),
+          ),
+          flagged.length && flagged.length < files.length
+            ? h(
+                'label',
+                { class: 'check' },
+                h('input', {
+                  type: 'checkbox',
+                  checked: state.flaggedOnly || null,
+                  onChange: (e) => {
+                    state.flaggedOnly = e.target.checked;
+                    state.showAll = false;
+                    draw();
+                  },
+                }),
+                'Only files with findings',
+              )
+            : null,
+        ),
+        h(
+          'div',
+          { class: 'table-wrap' },
+          h(
+            'table',
+            { class: 'file-table' },
+            h(
+              'thead',
+              null,
+              h('tr', null, h('th', { scope: 'col', class: 'col-status' }, h('span', { class: 'visually-hidden' }, 'Status')), h('th', { scope: 'col' }, 'File'), h('th', { scope: 'col', class: 'col-size' }, 'Change'), h('th', { scope: 'col', class: 'col-risk' }, 'Risk points')),
+            ),
+            rows.map((f) => fileRows(f)),
+          ),
+        ),
+        pool.length > COLLAPSED_LIMIT
+          ? h('button', { type: 'button', class: 'btn btn-quiet more-btn', onClick: () => { state.showAll = !state.showAll; draw(); } }, state.showAll ? 'Show fewer' : `Show all ${fmtInt(pool.length)}`)
+          : null,
+      );
+    }
+
+    function fileRows(f) {
+      const { dir, name } = splitPath(f.path);
+      const isOpen = state.open.has(f.path);
+      const mine = f.findings.map((id) => findingsById.get(id)).filter(Boolean);
+      const top = mine.length ? topSeverity(mine) : null;
+      const change = f.additions + f.deletions;
+      const rowId = `file-${f.path.replace(/[^a-z0-9]+/gi, '-')}`;
+
+      const main = h(
+        'tbody',
+        { class: 'file-group', data: { open: String(isOpen) } },
+        h(
+          'tr',
+          { class: 'file-row' },
+          h('td', { class: 'col-status' }, h('span', { class: 'status', data: { status: f.status }, title: STATUS_LABEL[f.status] }, STATUS_LETTER[f.status] || '?')),
+          h(
+            'th',
+            { scope: 'row', class: 'col-path' },
+            h(
+              'button',
+              {
+                type: 'button',
+                class: 'path-btn',
+                'aria-expanded': String(isOpen),
+                'aria-controls': rowId,
+                onClick: () => {
+                  if (state.open.has(f.path)) state.open.delete(f.path);
+                  else state.open.add(f.path);
+                  draw();
+                },
+              },
+              icon('chevron', 12),
+              h('span', { class: 'path' }, dir ? h('span', { class: 'path-dir' }, dir) : null, h('span', { class: 'path-name' }, name)),
+              f.old_path && f.status === 'renamed' ? h('span', { class: 'was dim' }, `from ${f.old_path}`) : null,
+            ),
+          ),
+          h(
+            'td',
+            { class: 'col-size' },
+            h('div', { class: 'size' }, h('span', { class: 'sizebar', 'aria-hidden': 'true', vars: { '--add': `${(f.additions / maxLines) * 100}%`, '--del': `${(f.deletions / maxLines) * 100}%` } }, h('i', { class: 'a' }), h('i', { class: 'd' })), h('span', { class: 'delta num' }, h('span', { class: 'add' }, `+${fmtInt(f.additions)}`), ' ', h('span', { class: 'del' }, `−${fmtInt(f.deletions)}`))),
+          ),
+          h(
+            'td',
+            { class: 'col-risk' },
+            top ? h('span', { class: 'risk-cell' }, severityShape(top, 13), h('span', { class: 'num' }, fmtPoints(f.points))) : h('span', { class: 'dim', 'aria-label': 'no findings' }, '—'),
+          ),
+        ),
+      );
+      if (isOpen) {
+        main.append(
+          h(
+            'tr',
+            { class: 'file-detail', id: rowId },
+            h(
+              'td',
+              { colspan: 4 },
+              mine.length
+                ? h('ul', { class: 'file-findings' }, mine.map((m) => h('li', null, severityShape(m.severity, 12), h('a', { href: `#${m.id}`, class: 'file-finding-link' }, m.title))))
+                : null,
+              diffView(report, f),
+              change === 0 && !f.hunks ? h('p', { class: 'diff-empty' }, 'No line changes (rename or mode change only).') : null,
+            ),
+          ),
+        );
+      }
+      return main;
+    }
+
+    draw();
+    return section;
+  }
+  return { filesSection };
+})();
+
+// js/views/commits.js
+const __m_js_views_commits_js = (() => {
+  const { h } = __m_js_dom_js;
+  const { plural, relTime, fullDate } = __m_js_format_js;
+
+  function commitsPanel(report) {
+    if (!report.commits.length) return null;
+    return h(
+      'details',
+      { class: 'panel commits' },
+      h('summary', null, h('h2', null, plural(report.commits.length, 'commit'), ' in this change')),
+      h(
+        'ol',
+        { class: 'commit-list' },
+        report.commits.map((c) =>
+          h(
+            'li',
+            { class: 'commit' },
+            h('span', { class: 'sha mono' }, c.sha.slice(0, 8)),
+            h('span', { class: 'commit-subject' }, c.subject),
+            h('span', { class: 'commit-meta dim' }, c.author, ' · ', h('time', { datetime: c.date, title: fullDate(c.date) }, relTime(c.date))),
+          ),
+        ),
+      ),
+    );
+  }
+  return { commitsPanel };
+})();
+
+// js/views/history.js
+const __m_js_views_history_js = (() => {
+  const { h } = __m_js_dom_js;
+  const { LEVEL_LABEL } = __m_js_model_js;
+  const { levelShape } = __m_js_icons_js;
+  const { fmtInt, fullDate, plural, relTime } = __m_js_format_js;
+  const { trendChart } = __m_js_views_trend_js;
+
+  /** Every saved analysis: the full-width trend, then the list as a table. */
+  function historyView({ reports, failOn, onSelect }) {
+    if (!reports.length) {
+      return h('section', { class: 'panel' }, h('header', { class: 'panel-head' }, h('h2', null, 'History')), h('p', { class: 'empty' }, 'Analyses you run are kept here, in .changerisk/ inside the repository. Nothing has been run yet.'));
+    }
+    const failed = reports.filter((r) => r.gate_failed).length;
+    return h(
+      'div',
+      { class: 'stack' },
+      h(
+        'section',
+        { class: 'panel chart-panel', 'aria-labelledby': 'hist-heading' },
+        h(
+          'header',
+          { class: 'panel-head' },
+          h('h1', { id: 'hist-heading', class: 'h2' }, 'History'),
+          h('p', { class: 'panel-sub' }, `${plural(reports.length, 'analysis', 'analyses')}, ${failed} of them failed the gate. Newest on the right.`),
+        ),
+        trendChart({ reports, selectedId: null, failOn, onSelect, height: 240 }),
+      ),
+      h(
+        'section',
+        { class: 'panel', 'aria-label': 'All analyses' },
+        h(
+          'div',
+          { class: 'table-wrap' },
+          h(
+            'table',
+            { class: 'plain-table history-table' },
+            h('thead', null, h('tr', null, ['When', 'Change', 'Level', 'Files', 'Findings', 'Main reasons'].map((t, i) => h('th', { scope: 'col', class: i === 3 || i === 4 ? 'r' : '' }, t)))),
+            h(
+              'tbody',
+              null,
+              reports.map((r) =>
+                h(
+                  'tr',
+                  { data: { level: r.level } },
+                  h('td', { class: 'nowrap' }, h('time', { datetime: r.generated_at, title: fullDate(r.generated_at) }, relTime(r.generated_at))),
+                  h('th', { scope: 'row' }, h('a', { class: 'mono', href: `#/r/${r.id}` }, r.head), r.base && r.mode === 'range' ? h('div', { class: 'dim small' }, `into ${r.base}`) : null),
+                  h('td', { class: 'nowrap' }, h('span', { class: 'level-cell' }, levelShape(r.level, 13, { label: false }), h('span', { class: 'num' }, r.score), h('span', { class: 'dim' }, LEVEL_LABEL[r.level]))),
+                  h('td', { class: 'r num' }, fmtInt(r.files)),
+                  h('td', { class: 'r num' }, fmtInt(r.findings)),
+                  h('td', { class: 'dim' }, r.top.length ? r.top.join(', ') : 'Nothing flagged'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  return { historyView };
+})();
+
+// js/views/rules.js
+const __m_js_views_rules_js = (() => {
+  const { h, mount } = __m_js_dom_js;
+  const { SEVERITY_LABEL, SEVERITY_LEVEL } = __m_js_model_js;
+  const { severityShape } = __m_js_icons_js;
+  const { plural } = __m_js_format_js;
+
+  /** The rule catalogue: what each rule looks for, why it matters, and how to tune it. */
+  function rulesView(rules) {
+    const state = { query: '', category: 'all' };
+    const categories = [...new Map(rules.map((r) => [r.category, r.category_label])).entries()];
+    const root = h('div', { class: 'stack' });
+
+    function draw() {
+      const q = state.query.trim().toLowerCase();
+      const shown = rules.filter(
+        (r) =>
+          (state.category === 'all' || r.category === state.category) &&
+          (!q || `${r.id} ${r.name} ${r.summary}`.toLowerCase().includes(q)),
+      );
+      const list = h('div', { class: 'rule-list' }, shown.map(ruleRow));
+      const count = h('p', { class: 'panel-sub', role: 'status' }, `${plural(shown.length, 'rule')} of ${rules.length}.`);
+
+      let table = root.querySelector('.rule-results');
+      if (!table) {
+        table = h('div', { class: 'rule-results' });
+        mount(
+          root,
+          h(
+            'section',
+            { class: 'panel', 'aria-labelledby': 'rules-heading' },
+            h('header', { class: 'panel-head' }, h('h1', { id: 'rules-heading', class: 'h2' }, 'Rules'), h('p', { class: 'panel-sub' }, 'Each rule has a stable id. Turn one off or tune it in changerisk.toml.')),
+            h(
+              'div',
+              { class: 'filters' },
+              h('div', { class: 'field' }, h('label', { for: 'rule-q' }, 'Search'), h('input', { id: 'rule-q', type: 'search', placeholder: 'id or words', autocomplete: 'off', onInput: (e) => { state.query = e.target.value; draw(); } })),
+              h('div', { class: 'field' }, h('label', { for: 'rule-cat' }, 'Area'), h('select', { id: 'rule-cat', onChange: (e) => { state.category = e.target.value; draw(); } }, h('option', { value: 'all' }, 'All areas'), categories.map(([id, label]) => h('option', { value: id }, label)))),
+            ),
+            table,
+          ),
+        );
+      }
+      mount(table, count, list);
+    }
+    draw();
+    return root;
+  }
+
+  function ruleRow(rule) {
+    const level = SEVERITY_LEVEL[rule.severity];
+    const options = Object.entries(rule.options);
+    return h(
+      'details',
+      { class: 'rule-row', data: { enabled: String(rule.enabled) } },
+      h(
+        'summary',
+        null,
+        h('span', { class: 'rule-id mono' }, rule.id),
+        h('span', { class: 'rule-name' }, rule.name),
+        h('span', { class: 'rule-area dim' }, rule.category_label),
+        h('span', { class: 'rule-sev' }, severityShape(rule.severity, 12), h('span', null, SEVERITY_LABEL[rule.severity]), h('span', { class: 'sr-level visually-hidden' }, level)),
+        rule.enabled ? null : h('span', { class: 'rule-off' }, 'Off'),
+      ),
+      h(
+        'div',
+        { class: 'rule-body' },
+        h('p', { class: 'rule-summary' }, rule.summary),
+        h('p', { class: 'why' }, rule.why),
+        h('h3', { class: 'eyebrow' }, 'What to test'),
+        h('ul', { class: 'tests' }, rule.tests.map((t) => h('li', null, t))),
+        options.length
+          ? h('div', null, h('h3', { class: 'eyebrow' }, 'Options'), h('dl', { class: 'options' }, options.flatMap(([k, v]) => [h('dt', { class: 'mono' }, k), h('dd', { class: 'mono' }, JSON.stringify(v))])))
+          : null,
+      ),
+    );
+  }
+  return { rulesView };
+})();
+
+// js/main.js
+const __m_js_main_js = (() => {
+  const { h, mount, announce } = __m_js_dom_js;
+  const { api, ApiError } = __m_js_api_js;
+  const { createStore } = __m_js_store_js;
+  const { applyTheme, currentTheme, themeSwitch } = __m_js_theme_js;
+  const { LEVEL_LABEL } = __m_js_model_js;
+  const { renderToolbar } = __m_js_views_toolbar_js;
+  const { renderRail } = __m_js_views_rail_js;
+  const { changeHeader, verdictPanel } = __m_js_views_verdict_js;
+  const { reasonsSection } = __m_js_views_reasons_js;
+  const { planSection } = __m_js_views_plan_js;
+  const { breakdownPanel } = __m_js_views_breakdown_js;
+  const { trendPanel } = __m_js_views_trend_js;
+  const { filesSection } = __m_js_views_files_js;
+  const { commitsPanel } = __m_js_views_commits_js;
+  const { historyView } = __m_js_views_history_js;
+  const { rulesView } = __m_js_views_rules_js;
+
+  const boot = window.__CHANGERISK__ || {};
+  const STATIC = Boolean(boot.static);
+
+  const store = createStore({
+    view: 'report',
+    reportId: null,
+    report: boot.report || null,
+    reports: [],
+    repo: null,
+    rules: null,
+    busy: false,
+    loading: false,
+    error: null,
+    loadError: null,
+  });
+
+  const el = {
+    nav: document.getElementById('nav'),
+    barEnd: document.getElementById('bar-end'),
+    toolbar: document.getElementById('toolbar'),
+    rail: document.getElementById('rail'),
+    main: document.getElementById('main'),
+  };
+
+  // --- routing -----------------------------------------------------------------
+
+  function parseHash() {
+    const hash = location.hash;
+    if (!hash || hash === '#' || hash === '#/') return { view: 'report', id: null };
+    if (!hash.startsWith('#/')) return null; // an in-page anchor such as #f3
+    const [, area, id] = hash.split('/');
+    if (area === 'history') return { view: 'history', id: null };
+    if (area === 'rules') return { view: 'rules', id: null };
+    if (area === 'r' && id) return { view: 'report', id: decodeURIComponent(id) };
+    return { view: 'report', id: null };
+  }
+
+  async function route(first = false) {
+    const target = parseHash();
+    if (!target) return;
+    document.body.dataset.view = target.view;
+    const state = store.get();
+    let id = target.id;
+    if (target.view === 'report' && !id && !STATIC) id = state.reports[0] ? state.reports[0].id : null;
+
+    store.set({ view: target.view, reportId: id, loadError: null });
+    renderNav();
+    if (target.view === 'rules' && !state.rules) loadRules();
+    if (target.view === 'report' && id && (!state.report || state.report.id !== id)) await loadReport(id);
+    if (target.view === 'report' && !id && !STATIC) store.set({ report: null });
+    renderAll();
+    if (!first) {
+      window.scrollTo({ top: 0 });
+      el.main.focus({ preventScroll: true });
+    }
+  }
+
+  async function loadReport(id) {
+    store.set({ loading: true });
+    renderAll();
+    try {
+      const report = await api.report(id);
+      store.set({ report, loading: false });
+    } catch (error) {
+      store.set({ loading: false, report: null, loadError: error instanceof ApiError ? error.message : String(error) });
+    }
+  }
+
+  async function loadRules() {
+    try {
+      store.set({ rules: (await api.rules()).rules });
+    } catch (error) {
+      store.set({ loadError: error.message });
+    }
+    renderAll();
+  }
+
+  // --- actions -----------------------------------------------------------------
+
+  async function refreshReports() {
+    const { reports } = await api.reports();
+    store.set({ reports });
+    return reports;
+  }
+
+  async function analyze(payload) {
+    store.set({ busy: true, error: null });
+    renderToolbarOnly();
+    announce('Analysing. This can take a few seconds on a large change.');
+    try {
+      const report = await api.analyze(payload);
+      await refreshReports();
+      store.set({ busy: false, report, reportId: report.id });
+      announce(`Analysis finished: ${LEVEL_LABEL[report.level]} risk, score ${report.score}.`);
+      if (location.hash === `#/r/${report.id}`) await route();
+      else location.hash = `#/r/${report.id}`;
+    } catch (error) {
+      store.set({ busy: false, error: error.message });
+      renderToolbarOnly();
+      announce(`Analysis failed. ${error.message}`);
+    }
+  }
+
+  async function remove(id) {
+    try {
+      await api.remove(id);
+    } catch (error) {
+      store.set({ error: error.message });
+    }
+    const reports = await refreshReports();
+    if (store.get().reportId === id) {
+      store.set({ report: null, reportId: null });
+      location.hash = reports[0] ? `#/r/${reports[0].id}` : '#/';
+      await route();
+    } else {
+      renderRailOnly();
+    }
+  }
+
+  // --- rendering ---------------------------------------------------------------
+
+  function renderNav() {
+    const { view } = store.get();
+    const tabs = STATIC ? [['report', 'Report', '#/']] : [['report', 'Report', '#/'], ['history', 'History', '#/history'], ['rules', 'Rules', '#/rules']];
+    mount(el.nav, tabs.map(([id, label, href]) => h('a', { class: 'tab', href, 'aria-current': view === id ? 'page' : null }, label)));
+  }
+
+  function renderBar() {
+    const { repo, report } = store.get();
+    const name = repo ? repo.name : report ? report.repo : '';
+    mount(el.barEnd, name ? h('span', { class: 'bar-repo', title: repo ? repo.path : name }, name, repo && repo.branch ? ` @ ${repo.branch}` : '') : null, themeSwitch());
+  }
+
+  function renderToolbarOnly() {
+    const { repo, busy, error } = store.get();
+    if (!repo || STATIC) return;
+    renderToolbar(el.toolbar, { repo, busy, error, onAnalyze: analyze });
+  }
+
+  function renderRailOnly() {
+    if (STATIC) return;
+    const { reports, reportId } = store.get();
+    renderRail(el.rail, { reports, selectedId: reportId, onDelete: remove });
+  }
+
+  function emptyState() {
+    const { repo } = store.get();
+    const base = repo && repo.default_base;
+    const head = repo && (repo.branch || 'HEAD');
+    const can = repo && repo.has_commits && base && base !== head;
+    return h(
+      'section',
+      { class: 'panel empty-state' },
+      h('h1', { class: 'h2' }, 'Nothing analysed yet'),
+      h('p', null, 'ChangeRisk compares a branch with the one it will merge into, scores the difference, and lists what to test because of it.'),
+      can
+        ? h('button', { type: 'button', class: 'btn btn-primary', onClick: () => analyze({ mode: 'range', base, head: 'HEAD', history: true }) }, `Analyse ${head} against ${base}`)
+        : h('p', { class: 'dim' }, 'Pick two refs above and press Analyse, or analyse staged changes.'),
+      h('p', { class: 'dim small' }, 'From a terminal: ', h('code', null, 'changerisk analyze --base main')),
+    );
+  }
+
+  function reportView(report) {
+    const { reports } = store.get();
+    const failOn = report.gate.fail_on;
+    const select = (id) => { location.hash = `#/r/${id}`; };
+    return [
+      changeHeader(report, { onRerun: STATIC ? null : () => analyze(report.range.mode === 'range' ? { mode: 'range', base: report.range.base, head: report.range.head, history: true } : { mode: report.range.mode, history: true }), canExport: !STATIC }),
+      verdictPanel(report),
+      reasonsSection(report),
+      planSection(report),
+      h('div', { class: 'duo' }, breakdownPanel(report), STATIC ? null : trendPanel({ reports, selectedId: report.id, failOn, onSelect: select })),
+      filesSection(report),
+      commitsPanel(report),
+      h('footer', { class: 'colophon' }, `ChangeRisk ${report.tool_version}. Generated ${new Date(report.generated_at).toLocaleString()}.`),
+    ];
+  }
+
+  function renderMain() {
+    const s = store.get();
+    el.main.classList.toggle('is-loading', s.loading);
+    document.title = 'ChangeRisk';
+    if (s.view === 'history') {
+      mount(el.main, historyView({ reports: s.reports, failOn: s.repo && s.report ? s.report.gate.fail_on : 'high', onSelect: (id) => { location.hash = `#/r/${id}`; } }));
+      return;
+    }
+    if (s.view === 'rules') {
+      mount(el.main, s.rules ? rulesView(s.rules) : h('p', { class: 'empty' }, s.loadError || 'Loading rules…'));
+      return;
+    }
+    if (s.loadError) {
+      mount(el.main, h('section', { class: 'panel' }, h('h1', { class: 'h2' }, 'That analysis could not be opened'), h('p', null, s.loadError), h('a', { class: 'btn', href: '#/' }, 'Back to the latest')));
+      return;
+    }
+    if (!s.report) {
+      mount(el.main, s.loading ? h('p', { class: 'empty' }, 'Loading…') : emptyState());
+      return;
+    }
+    document.title = `${LEVEL_LABEL[s.report.level]} risk (${s.report.score}) · ${s.report.range.head} · ChangeRisk`;
+    mount(el.main, reportView(s.report));
+  }
+
+  function renderAll() {
+    renderBar();
+    renderToolbarOnly();
+    renderRailOnly();
+    renderMain();
+  }
+
+  // --- start -------------------------------------------------------------------
+
+  async function start() {
+    applyTheme(currentTheme());
+    if (STATIC) {
+      document.body.dataset.static = '';
+      store.set({ report: boot.report, reportId: boot.report.id || null });
+      renderNav();
+      renderAll();
+      return;
+    }
+    try {
+      const [repo, list] = await Promise.all([api.repo(), api.reports()]);
+      store.set({ repo, reports: list.reports });
+    } catch (error) {
+      mount(el.main, h('section', { class: 'panel' }, h('h1', { class: 'h2' }, 'The dashboard cannot reach its server'), h('p', null, error.message)));
+      return;
+    }
+    window.addEventListener('hashchange', () => route());
+    await route(true);
+  }
+
+  start();
+})();
+</script>
+</body>
+</html>

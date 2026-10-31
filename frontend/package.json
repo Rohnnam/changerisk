@@ -1,0 +1,9 @@
+{
+  "name": "changerisk-dashboard",
+  "private": true,
+  "type": "module",
+  "description": "Static dashboard served by `changerisk serve`. No dependencies and no build step; this file only lets `node --test` treat the scripts as ES modules.",
+  "scripts": {
+    "test": "node --test"
+  }
+}

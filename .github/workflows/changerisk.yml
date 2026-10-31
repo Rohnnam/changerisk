@@ -1,0 +1,31 @@
+name: changerisk
+
+# ChangeRisk checking its own pull requests.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  risk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # history signals and the merge base need the full history
+      - uses: ./
+        with:
+          fail-on: high
+          html: changerisk-report.html
+          sarif: changerisk.sarif
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: changerisk-report
+          path: |
+            changerisk-report.html
+            changerisk.sarif
+          if-no-files-found: ignore

@@ -1,0 +1,95 @@
+name: ChangeRisk
+description: Score how risky a pull request is, explain why it needs extra testing, and optionally fail the check.
+author: ChangeRisk
+
+branding:
+  icon: alert-triangle
+  color: gray-dark
+
+inputs:
+  fail-on:
+    description: Fail the step when the risk level reaches this. One of never, moderate, high, critical.
+    required: false
+    default: high
+  comment:
+    description: Post the report as a pull request comment, updating it on later pushes.
+    required: false
+    default: "true"
+  config:
+    description: Path to a changerisk.toml. Defaults to the one in the repository root, if any.
+    required: false
+    default: ""
+  base:
+    description: Override the base revision. Normally taken from the event.
+    required: false
+    default: ""
+  head:
+    description: Override the head revision. Normally taken from the event.
+    required: false
+    default: ""
+  sarif:
+    description: Write a SARIF file to this path, for upload to code scanning.
+    required: false
+    default: ""
+  html:
+    description: Write the standalone HTML report to this path, for upload as an artifact.
+    required: false
+    default: ""
+  python-version:
+    description: Python version to run ChangeRisk with.
+    required: false
+    default: "3.12"
+  github-token:
+    description: Token used to post the comment. It needs pull-requests write access.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  score:
+    description: The risk score, 0 to 100.
+    value: ${{ steps.run.outputs.score }}
+  level:
+    description: The risk level (low, moderate, high or critical).
+    value: ${{ steps.run.outputs.level }}
+  failed:
+    description: "true when the level reached the gate."
+    value: ${{ steps.run.outputs.failed }}
+  findings:
+    description: The number of findings.
+    value: ${{ steps.run.outputs.findings }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install ChangeRisk
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: python -m pip install --disable-pip-version-check --quiet "$ACTION_PATH"
+
+    - name: Analyse the change
+      id: run
+      shell: bash
+      env:
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_HEAD: ${{ inputs.head }}
+        INPUT_SARIF: ${{ inputs.sarif }}
+        INPUT_HTML: ${{ inputs.html }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        # Inputs reach the shell through the environment only, never through string interpolation.
+        args=(ci --fail-on "$INPUT_FAIL_ON")
+        [ "$INPUT_COMMENT" = "true" ] || args+=(--no-comment)
+        [ -z "$INPUT_CONFIG" ] || args+=(--config "$INPUT_CONFIG")
+        [ -z "$INPUT_BASE" ] || args+=(--base "$INPUT_BASE")
+        [ -z "$INPUT_HEAD" ] || args+=(--head "$INPUT_HEAD")
+        [ -z "$INPUT_SARIF" ] || args+=(--sarif "$INPUT_SARIF")
+        [ -z "$INPUT_HTML" ] || args+=(--html "$INPUT_HTML")
+        changerisk "${args[@]}"
