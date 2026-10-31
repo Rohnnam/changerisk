@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -24,10 +25,16 @@ MAX_TOTAL_LINES = 8000
 MAX_TEXT = 400
 
 
-def run_rules(ctx: Context, notes: list[str] | None = None) -> list[Finding]:
+def run_rules(
+    ctx: Context, notes: list[str] | None = None, deadline: float | None = None
+) -> list[Finding]:
     load_all()
     found: list[Finding] = []
     for rule in all_rules():
+        if deadline is not None and time.monotonic() > deadline:
+            if notes is not None:
+                notes.append("The time limit was reached, so some rules did not run.")
+            break
         settings = ctx.config.rule(rule.info.id)
         if not settings.enabled:
             continue
@@ -121,10 +128,11 @@ def analyze_changes(
     *,
     include_diffs: str = "flagged",
     notes: list[str] | None = None,
+    deadline: float | None = None,
 ) -> RiskReport:
     notes = list(notes or [])
     ctx = Context(changes, config, hist)
-    findings = run_rules(ctx, notes)
+    findings = run_rules(ctx, notes, deadline)
     scrub(findings, ctx)
     apply_points(findings, config)
     findings.sort(key=lambda f: (-f.points, -f.severity, f.rule_id, f.paths))
@@ -177,6 +185,7 @@ def analyze_changes(
         files=file_reports(ctx, findings, include_diffs),
         commits=changes.commits,
         notes=notes,
+        source=changes.source,
     )
 
 

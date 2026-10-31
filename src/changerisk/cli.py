@@ -79,6 +79,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8765, help="0 picks a free port")
     s.add_argument("--no-open", action="store_true", help="do not open a browser")
+    s.add_argument(
+        "--hosted",
+        action="store_true",
+        help="run the public, stateless dashboard: no repository needed, input is a pasted diff "
+        "or a public GitHub pull request (see docs/DEPLOY.md)",
+    )
 
     r = sub.add_parser("rules", help="list the rules, or explain one")
     r.add_argument("rule_id", nargs="?", help="show details for this rule id")
@@ -201,6 +207,10 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
+    if args.hosted:
+        from .hosted import serve_hosted
+
+        return serve_hosted(args.host, args.port)
     from .server import serve
 
     return serve(args.repo, args.host, args.port, open_browser=not args.no_open)

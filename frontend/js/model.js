@@ -93,5 +93,6 @@ export function topSeverity(findings) {
 export function rangeLabel(range) {
   if (range.mode === 'staged') return { from: 'HEAD', to: 'staged changes', plain: true };
   if (range.mode === 'worktree') return { from: 'HEAD', to: 'working tree', plain: true };
+  if (range.mode === 'diff') return { from: '', to: 'pasted diff', plain: true, single: true };
   return { from: range.base, to: range.head, plain: false };
 }

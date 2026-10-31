@@ -20,8 +20,9 @@ export function remember(key, value) {
   try {
     if (value === undefined) localStorage.removeItem(key);
     else localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch {
-    // ignore
+    return false;
   }
 }
 

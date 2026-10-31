@@ -142,6 +142,7 @@ class ChangeSet:
     repo_files: frozenset[str] = frozenset()
     repo_name: str = ""
     truncated: bool = False
+    source: dict[str, Any] | None = None  # set for pasted diffs and GitHub pull requests
 
     @property
     def additions(self) -> int:
@@ -273,6 +274,7 @@ class RiskReport:
     commits: list[CommitInfo]
     notes: list[str] = field(default_factory=list)
     id: str | None = None
+    source: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -315,6 +317,7 @@ class RiskReport:
                 for c in self.commits
             ],
             "notes": self.notes,
+            "source": self.source,
         }
 
     @classmethod
@@ -390,4 +393,5 @@ class RiskReport:
             ],
             notes=list(data.get("notes", [])),
             id=data.get("id"),
+            source=data.get("source"),
         )

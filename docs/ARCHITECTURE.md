@@ -83,7 +83,8 @@ syntax rules by a test.
 | Orchestration | `engine.py` |
 | Output | `reports/` |
 | Persistence | `store.py` |
-| Dashboard server | `server.py`, `webassets.py` |
+| Dashboard server | `server.py` (shared base and the local app), `webassets.py` |
+| Hosted mode | `remote.py` (pasted diffs and GitHub), `hosted.py` (stateless app, limits), `Dockerfile`, `deploy/` |
 | GitHub | `github.py`, `action.yml` |
 | CLI | `cli.py` |
 
@@ -130,6 +131,21 @@ syntax rules by a test.
 
 Use `scope="change"` for findings about the change as a whole (size, spread) so they are not charged
 to individual files.
+
+## Hosted mode
+
+The local dashboard owns a repository. The hosted one (`hosted.py`) owns nothing: the change comes from
+`remote.py` as a `ChangeSet` built from diff text, so the engine, rules, scoring and reports are the
+same code. What differs is everything around it. History and (mostly) the file list are unavailable, so
+those rules stay quiet and the report says why. Reports are kept by the browser (`local-store.js`), and
+exports are rendered from the report the browser sends back (`POST /api/render`). The frontend picks its
+interface from `GET /api/repo` (`hosted: true`) through a small `backend` object, so the views are
+shared. [DEPLOY.md](DEPLOY.md) has the threat model.
+
+Getting a change from the network is the new risk, so `remote.py` is strict: it talks to two fixed
+hosts, parses URLs with anchored patterns, caps sizes, and never lets a rule see an unbounded line.
+Measuring it showed that a secret-detection pattern was quadratic on long runs of word characters
+(a minified bundle triggered it too); `tests/test_robustness.py` keeps it fixed.
 
 ## The dashboard server
 

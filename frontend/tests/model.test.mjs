@@ -45,4 +45,6 @@ test('range labels for each analysis mode', () => {
   assert.deepEqual(rangeLabel({ mode: 'range', base: 'main', head: 'x' }), { from: 'main', to: 'x', plain: false });
   assert.equal(rangeLabel({ mode: 'staged' }).to, 'staged changes');
   assert.equal(rangeLabel({ mode: 'worktree' }).to, 'working tree');
+  assert.deepEqual(rangeLabel({ mode: 'diff' }), { from: '', to: 'pasted diff', plain: true, single: true });
+  assert.deepEqual(rangeLabel({ mode: 'pr', base: 'main', head: 'ada:topic' }), { from: 'main', to: 'ada:topic', plain: false });
 });
