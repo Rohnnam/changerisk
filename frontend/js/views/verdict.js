@@ -3,10 +3,9 @@ import { LEVEL_LABEL, rangeLabel } from '../model.js';
 import { levelShape, icon } from '../icons.js';
 import { ruler } from './ruler.js';
 import { fmtInt, fmtPoints, fullDate, plural, relTime, shortRef } from '../format.js';
-import { copyText } from '../clipboard.js';
-import { api, fetchText } from '../api.js';
+import { EXPORT_TYPES } from '../download.js';
 
-export function changeHeader(report, { onRerun, canExport }) {
+export function changeHeader(report, { onRerun, exporter }) {
   const range = rangeLabel(report.range);
   const sha = report.range.head_sha ? report.range.head_sha.slice(0, 8) : null;
   const meta = [
@@ -17,10 +16,10 @@ export function changeHeader(report, { onRerun, canExport }) {
   ].filter(Boolean);
 
   const actions = [];
-  if (canExport && report.id) {
+  if (exporter) {
     actions.push(
-      h('button', { type: 'button', class: 'btn', onClick: () => copyMarkdown(report) }, icon('copy', 15), 'Copy Markdown'),
-      exportLinks(report),
+      h('button', { type: 'button', class: 'btn', onClick: () => attempt(exporter.copyMarkdown) }, icon('copy', 15), 'Copy Markdown'),
+      exportMenu(exporter),
     );
   }
   if (onRerun) {
@@ -33,11 +32,16 @@ export function changeHeader(report, { onRerun, canExport }) {
     h(
       'h1',
       { class: 'change-refs' },
-      h('span', { class: `ref ${range.plain ? 'ref-plain' : ''}`, title: range.from }, shortRef(range.from)),
-      h('span', { class: 'ref-join', 'aria-label': 'compared with' }, range.plain ? 'vs' : '…'),
-      h('span', { class: 'ref', title: range.to }, shortRef(range.to)),
+      range.single
+        ? h('span', { class: 'ref ref-plain' }, range.to)
+        : [
+            h('span', { class: `ref ${range.plain ? 'ref-plain' : ''}`, title: range.from }, shortRef(range.from)),
+            h('span', { class: 'ref-join', 'aria-label': 'compared with' }, range.plain ? 'vs' : '…'),
+            h('span', { class: 'ref', title: range.to }, shortRef(range.to)),
+          ],
       sha ? h('span', { class: 'sha mono', title: 'Head commit' }, sha) : null,
     ),
+    sourceLine(report.source),
     h(
       'div',
       { class: 'change-row' },
@@ -47,23 +51,48 @@ export function changeHeader(report, { onRerun, canExport }) {
   );
 }
 
-async function copyMarkdown(report) {
+async function attempt(action) {
   try {
-    const text = await fetchText(api.exportUrl(report.id, 'markdown'));
-    await copyText(text, 'Markdown copied');
+    await action();
   } catch (error) {
     announce(error.message);
   }
 }
 
-function exportLinks(report) {
-  const link = (format, label) =>
-    h('a', { class: 'menu-item', href: api.exportUrl(report.id, format), download: '' }, label);
-  return h(
-    'details',
-    { class: 'menu' },
+function exportMenu(exporter) {
+  const menu = h('details', { class: 'menu' });
+  const item = (format) =>
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'menu-item',
+        onClick: () => {
+          menu.open = false;
+          attempt(() => exporter.download(format));
+        },
+      },
+      EXPORT_TYPES[format].label,
+    );
+  menu.append(
     h('summary', { class: 'btn' }, icon('download', 15), 'Export', icon('chevron', 12)),
-    h('div', { class: 'menu-pop' }, link('html', 'HTML report (one file)'), link('json', 'JSON'), link('sarif', 'SARIF for code scanning'), link('markdown', 'Markdown')),
+    h('div', { class: 'menu-pop' }, ['html', 'json', 'sarif', 'markdown'].map(item)),
+  );
+  return menu;
+}
+
+/** For a pull request: its title and a link back to GitHub. Only https://github.com links are made links. */
+function sourceLine(source) {
+  if (!source || source.type !== 'github') return null;
+  const safe = typeof source.url === 'string' && source.url.startsWith('https://github.com/');
+  const label = source.label || source.url;
+  return h(
+    'p',
+    { class: 'source-line' },
+    safe ? h('a', { href: source.url, target: '_blank', rel: 'noopener noreferrer' }, label) : h('span', null, label),
+    source.title ? h('span', { class: 'source-title' }, source.title) : null,
+    source.author ? h('span', { class: 'dim' }, `by ${source.author}`) : null,
+    source.state ? h('span', { class: 'sev-word' }, source.state) : null,
   );
 }
 

@@ -116,3 +116,41 @@ def test_our_own_workflows_pass_our_own_pipeline_rules(path):
 def test_version_is_in_one_place_and_agrees():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert pyproject["project"]["version"] == changerisk.__version__
+
+
+def test_the_container_is_set_up_for_production():
+    text = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "USER app" in text and "--uid 1000" in text, (
+        "run unprivileged, as uid 1000 like Hugging Face"
+    )
+    assert "EXPOSE 7860" in text and "HEALTHCHECK" in text and "/api/health" in text
+    assert '"--hosted"' in text and '"0.0.0.0"' in text
+    ignore = (ROOT / ".dockerignore").read_text(encoding="utf-8").split()
+    assert {".git", ".venv", "tests", "examples"} <= set(ignore)
+
+
+def test_the_hugging_face_space_files_are_consistent():
+    space = ROOT / "deploy" / "hf-space"
+    readme = (space / "README.md").read_text(encoding="utf-8")
+    front = yaml.safe_load(readme.split("---")[1])
+    assert front["sdk"] == "docker" and front["app_port"] == 7860
+    assert len(front["short_description"]) <= 60
+    dockerfile = (space / "Dockerfile").read_text(encoding="utf-8")
+    assert "USER app" in dockerfile and "EXPOSE 7860" in dockerfile and "--hosted" in dockerfile
+    assert "CHANGERISK_TRUSTED_PROXIES" in dockerfile and "CHANGERISK_FRAME_ANCESTORS" in dockerfile
+    assert "github.com/Rohnnam/changerisk/archive/${CHANGERISK_REF}.zip" in dockerfile
+
+
+def test_documented_settings_are_the_ones_the_code_reads():
+    deploy = (ROOT / "docs" / "DEPLOY.md").read_text(encoding="utf-8")
+    code = (ROOT / "src" / "changerisk" / "hosted.py").read_text(encoding="utf-8")
+    remote = (ROOT / "src" / "changerisk" / "remote.py").read_text(encoding="utf-8")
+    read = set(re.findall(r'"(CHANGERISK_[A-Z_]+|GITHUB_TOKEN)"', code + remote))
+    documented = set(re.findall(r"`(CHANGERISK_[A-Z_]+|GITHUB_TOKEN)`", deploy))
+    assert read <= documented, f"undocumented settings: {read - documented}"
+    build_args = {
+        "CHANGERISK_REF"
+    }  # a Docker build argument in the Space image, not read by the app
+    assert documented - build_args <= read, (
+        f"documented but unused: {documented - build_args - read}"
+    )

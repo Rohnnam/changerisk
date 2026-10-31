@@ -73,35 +73,51 @@ class Response:
         return Response.json({"error": message}, status)
 
 
-class App:
-    """Request handling without any sockets, so it can be tested directly."""
+class WebApp:
+    """Routing, static files and request checks, without any sockets so it can be tested directly.
 
-    def __init__(self, repo: Path | str, port: int = 0, host: str = "127.0.0.1") -> None:
-        load_all()
-        self.root = gitops.repo_root(repo)
-        self.store = ReportStore(self.root)
+    Subclasses decide what the API does and which requests are acceptable.
+    """
+
+    max_body = MAX_BODY
+    read_timeout: float | None = None  # seconds a client may stall; None means no limit
+
+    def __init__(self) -> None:
         self.web = web_dir()
-        self.allowed_hosts: set[str] = set()
-        self.bind(host, port)
-        self._analysis = threading.Lock()
 
-    def bind(self, host: str, port: int) -> None:
-        """Record which Host headers are legitimate for the address we ended up listening on."""
-        self.allowed_hosts = {f"{name}:{port}" for name in LOOPBACK | {host}}
+    def security_headers(self) -> dict[str, str]:
+        return dict(SECURITY_HEADERS)
 
-    # -- routing --------------------------------------------------------------
+    def check_request(self, method: str, headers: dict[str, str]) -> Response | None:
+        raise NotImplementedError
+
+    def api(
+        self,
+        method: str,
+        path: str,
+        target: str,
+        headers: dict[str, str],
+        body: bytes,
+        peer: str,
+    ) -> Response:
+        raise NotImplementedError
 
     def handle(
-        self, method: str, target: str, headers: dict[str, str], body: bytes = b""
+        self,
+        method: str,
+        target: str,
+        headers: dict[str, str],
+        body: bytes = b"",
+        peer: str = "",
     ) -> Response:
         headers = {k.lower(): v for k, v in headers.items()}
-        denied = self._check_origin(method, headers)
+        denied = self.check_request(method, headers)
         if denied:
             return denied
         path = unquote(urlsplit(target).path)
         try:
             if path.startswith("/api/"):
-                return self._api(method, path, target, headers, body)
+                return self.api(method, path, target, headers, body, peer)
             if method not in ("GET", "HEAD"):
                 return Response.error(405, "method not allowed")
             return self._static(path)
@@ -110,7 +126,45 @@ class App:
         except ConfigError as exc:
             return Response.error(422, str(exc))
 
-    def _check_origin(self, method: str, headers: dict[str, str]) -> Response | None:
+    # -- static files ---------------------------------------------------------
+
+    def _static(self, path: str) -> Response:
+        rel = "index.html" if path in ("", "/") else path.lstrip("/")
+        parts = Path(rel).parts
+        if ".." in parts or Path(rel).is_absolute() or any(p.startswith(".") for p in parts):
+            return Response.error(404, "not found")
+        target = (self.web / rel).resolve()
+        try:
+            target.relative_to(self.web.resolve())
+        except ValueError:
+            return Response.error(404, "not found")
+        if not target.is_file() or target.suffix.lower() not in STATIC_TYPES:
+            return Response.error(404, "not found")
+        ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        if ctype.startswith("text/") or ctype.endswith("json"):
+            ctype += "; charset=utf-8"
+        return Response(
+            200, target.read_bytes(), {"Content-Type": ctype, "Cache-Control": "no-cache"}
+        )
+
+
+class App(WebApp):
+    """The local dashboard: one repository on this machine, reports kept in `.changerisk/`."""
+
+    def __init__(self, repo: Path | str, port: int = 0, host: str = "127.0.0.1") -> None:
+        super().__init__()
+        load_all()
+        self.root = gitops.repo_root(repo)
+        self.store = ReportStore(self.root)
+        self.allowed_hosts: set[str] = set()
+        self.bind(host, port)
+        self._analysis = threading.Lock()
+
+    def bind(self, host: str, port: int) -> None:
+        """Record which Host headers are legitimate for the address we ended up listening on."""
+        self.allowed_hosts = {f"{name}:{port}" for name in LOOPBACK | {host}}
+
+    def check_request(self, method: str, headers: dict[str, str]) -> Response | None:
         host = headers.get("host", "")
         if host not in self.allowed_hosts:
             return Response.error(403, "unexpected Host header")
@@ -122,8 +176,14 @@ class App:
                 return Response.error(403, "cross-site request refused")
         return None
 
-    def _api(
-        self, method: str, path: str, target: str, headers: dict[str, str], body: bytes
+    def api(
+        self,
+        method: str,
+        path: str,
+        target: str,
+        headers: dict[str, str],
+        body: bytes,
+        peer: str,
     ) -> Response:
         if path == "/api/health" and method == "GET":
             return Response.json({"ok": True, "version": __version__})
@@ -199,26 +259,7 @@ class App:
         }
 
     def rules_info(self) -> list[dict]:
-        cfg = load_config(self.root, rule_options=option_defaults())
-        out = []
-        for rule in all_rules():
-            info = rule.info
-            settings = cfg.rule(info.id)
-            out.append(
-                {
-                    "id": info.id,
-                    "name": info.name,
-                    "category": info.category,
-                    "category_label": CATEGORIES[info.category],
-                    "severity": (settings.severity or info.severity).label,
-                    "enabled": settings.enabled,
-                    "summary": info.summary,
-                    "why": info.why,
-                    "tests": list(info.tests),
-                    "options": {**info.options, **settings.options},
-                }
-            )
-        return out
+        return describe_rules(load_config(self.root, rule_options=option_defaults()))
 
     def export(self, report_id: str, query: str) -> Response:
         fmt = (parse_qs(query).get("format") or ["json"])[0]
@@ -274,40 +315,42 @@ class App:
             self.store.save(report)
         return Response.json(report.to_dict())
 
-    # -- static files ---------------------------------------------------------
 
-    def _static(self, path: str) -> Response:
-        rel = "index.html" if path in ("", "/") else path.lstrip("/")
-        parts = Path(rel).parts
-        if ".." in parts or Path(rel).is_absolute() or any(p.startswith(".") for p in parts):
-            return Response.error(404, "not found")
-        target = (self.web / rel).resolve()
-        try:
-            target.relative_to(self.web.resolve())
-        except ValueError:
-            return Response.error(404, "not found")
-        if not target.is_file() or target.suffix.lower() not in STATIC_TYPES:
-            return Response.error(404, "not found")
-        ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-        if ctype.startswith("text/") or ctype.endswith("json"):
-            ctype += "; charset=utf-8"
-        return Response(
-            200, target.read_bytes(), {"Content-Type": ctype, "Cache-Control": "no-cache"}
+def describe_rules(cfg) -> list[dict]:
+    out = []
+    for rule in all_rules():
+        info = rule.info
+        settings = cfg.rule(info.id)
+        out.append(
+            {
+                "id": info.id,
+                "name": info.name,
+                "category": info.category,
+                "category_label": CATEGORIES[info.category],
+                "severity": (settings.severity or info.severity).label,
+                "enabled": settings.enabled,
+                "summary": info.summary,
+                "why": info.why,
+                "tests": list(info.tests),
+                "options": {**info.options, **settings.options},
+            }
         )
+    return out
 
 
-def make_handler(app: App) -> type[BaseHTTPRequestHandler]:
+def make_handler(app: WebApp) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
         server_version = "changerisk"
         sys_version = ""
+        timeout = app.read_timeout
 
         def _serve(self) -> None:
             try:
                 length = int(self.headers.get("Content-Length") or 0)
             except ValueError:
                 length = -1
-            if length < 0 or length > MAX_BODY:
+            if length < 0 or length > app.max_body:
                 self._send(
                     Response.error(413 if length > 0 else 400, "bad or oversized request body")
                 )
@@ -315,7 +358,13 @@ def make_handler(app: App) -> type[BaseHTTPRequestHandler]:
                 return
             body = self.rfile.read(length) if length else b""
             try:
-                res = app.handle(self.command, self.path, dict(self.headers.items()), body)
+                res = app.handle(
+                    self.command,
+                    self.path,
+                    dict(self.headers.items()),
+                    body,
+                    self.client_address[0],
+                )
             except Exception:  # keep the connection answerable whatever went wrong
                 traceback.print_exc()
                 res = Response.error(500, "internal error; see the server log")
@@ -323,7 +372,7 @@ def make_handler(app: App) -> type[BaseHTTPRequestHandler]:
 
         def _send(self, res: Response) -> None:
             self.send_response(res.status)
-            for k, v in {**SECURITY_HEADERS, **res.headers}.items():
+            for k, v in {**app.security_headers(), **res.headers}.items():
                 self.send_header(k, v)
             self.send_header("Content-Length", str(len(res.body)))
             self.end_headers()

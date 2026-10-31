@@ -3,7 +3,7 @@ import { levelShape, icon } from '../icons.js';
 import { fmtInt, relTime, fullDate, shortRef } from '../format.js';
 
 /** The list of past analyses, newest first. */
-export function renderRail(root, { reports, selectedId, onDelete }) {
+export function renderRail(root, { reports, selectedId, onDelete, caption }) {
   const confirming = new Set();
 
   function draw() {
@@ -15,9 +15,10 @@ export function renderRail(root, { reports, selectedId, onDelete }) {
         h('h2', { class: 'eyebrow' }, 'Recent analyses'),
         h('span', { class: 'rail-count num dim' }, reports.length),
       ),
+      caption ? h('p', { class: 'rail-caption' }, caption) : null,
       reports.length
         ? h('ul', { class: 'rail-list' }, reports.map((r) => item(r)))
-        : h('p', { class: 'rail-empty' }, 'Nothing analysed yet. Pick two refs above and press Analyse.'),
+        : h('p', { class: 'rail-empty' }, caption ? 'Nothing analysed yet.' : 'Nothing analysed yet. Pick two refs above and press Analyse.'),
     );
   }
 

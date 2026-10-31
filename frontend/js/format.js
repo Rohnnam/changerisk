@@ -61,6 +61,7 @@ export function sentenceCase(text) {
 }
 
 export function shortRef(ref, max = 34) {
+  if (/^[0-9a-f]{40}$/.test(ref || '')) return ref.slice(0, 8);
   if (!ref || ref.length <= max) return ref || '';
   const head = Math.ceil((max - 1) / 2);
   const tail = Math.floor((max - 1) / 2);

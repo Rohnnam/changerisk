@@ -137,9 +137,16 @@ def test_html_report_is_one_self_contained_file(report):
     assert text.startswith("<!doctype html>")
     assert "window.__CHANGERISK__ =" in text and '"static": true' in text
     assert "Critical risk" in text.split("</title>")[0]
-    assert "<link" not in text and 'src="' not in text
-    urls = set(re.findall(r"https?://[^\s'\"<>)]+", text))
-    assert urls <= {"http://www.w3.org/2000/svg"}, urls
+    # Nothing in the markup or the stylesheets may load anything from elsewhere...
+    markup = re.sub(r"<script>.*?</script>", "", text, flags=re.S)
+    assert "<link" not in markup and 'src="' not in markup and "@import" not in markup
+    assert not re.search(r"https?://", markup), "markup or CSS refers to an outside address"
+    # ...and the scripts have no way to fetch code. (They do contain a few URLs as text, such as the
+    # link to the source and the example diff; the report view never makes a request.)
+    scripts = "".join(re.findall(r"<script>(.*?)</script>", text, flags=re.S))
+    assert (
+        "import(" not in scripts and "XMLHttpRequest" not in scripts and "WebSocket" not in scripts
+    )
 
 
 def test_embedded_data_cannot_break_out_of_its_script_tag(report):

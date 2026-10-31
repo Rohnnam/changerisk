@@ -299,3 +299,9 @@
   .rule-area, .rule-sev { display: none; }
   .rule-body { padding-left: 0; }
 }
+
+/* Where a change came from ---------------------------------------------------------------- */
+
+.source-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 0.85rem; color: var(--ink-2); }
+.source-line a { font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--ink); }
+.source-title { color: var(--ink); max-width: 70ch; }

@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from changerisk import engine
+from changerisk import __version__, engine
 from changerisk.reports import FORMATS, annotate, markdown, render, text
 
 from .test_engine import risky_branch, seeded
@@ -79,7 +79,7 @@ def test_markdown_has_marker_sections_and_checklist(report):
     assert "## ChangeRisk: Critical risk (" in out
     assert "### Why this needs extra testing" in out and "### Test plan" in out
     assert "- [ ] " in out and "<details>" in out
-    assert "[ChangeRisk 0.1.0](https://example.test/run/1)" in out
+    assert f"[ChangeRisk {__version__}](https://example.test/run/1)" in out
 
 
 def test_markdown_without_marker_for_step_summary(report):
@@ -154,3 +154,11 @@ def test_unknown_format_is_rejected(report):
     with pytest.raises(ValueError, match="unknown format"):
         render(report, "yaml")
     assert set(FORMATS) == {"text", "markdown", "json", "html", "github", "sarif"}
+
+
+def test_full_commit_ids_are_shortened_in_headers(report):
+    report.base, report.head = "a" * 40, "b" * 40
+    assert "`aaaaaaaa...bbbbbbbb`" in markdown.render(report)
+    assert "aaaaaaaa...bbbbbbbb" in text.render(report)
+    report.base, report.head = "main", "feature/x"
+    assert "main...feature/x" in text.render(report)

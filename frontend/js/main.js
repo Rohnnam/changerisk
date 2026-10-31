@@ -1,9 +1,11 @@
 import { h, mount, announce } from './dom.js';
 import { api, ApiError } from './api.js';
+import { hostedBackend, serverBackend } from './backend.js';
 import { createStore } from './store.js';
 import { applyTheme, currentTheme, themeSwitch } from './theme.js';
 import { LEVEL_LABEL } from './model.js';
 import { renderToolbar } from './views/toolbar.js';
+import { renderSourceForm } from './views/source-form.js';
 import { renderRail } from './views/rail.js';
 import { changeHeader, verdictPanel } from './views/verdict.js';
 import { reasonsSection } from './views/reasons.js';
@@ -17,6 +19,9 @@ import { rulesView } from './views/rules.js';
 
 const boot = window.__CHANGERISK__ || {};
 const STATIC = Boolean(boot.static);
+const REPO_URL = 'https://github.com/Rohnnam/changerisk';
+
+let backend = null; // chosen at start: the local server, or the hosted one with reports kept in the browser
 
 const store = createStore({
   view: 'report',
@@ -30,6 +35,8 @@ const store = createStore({
   error: null,
   loadError: null,
 });
+
+const hosted = () => Boolean(backend && backend.hosted);
 
 const el = {
   nav: document.getElementById('nav'),
@@ -76,7 +83,7 @@ async function loadReport(id) {
   store.set({ loading: true });
   renderAll();
   try {
-    const report = await api.report(id);
+    const report = await backend.report(id);
     store.set({ report, loading: false });
   } catch (error) {
     store.set({ loading: false, report: null, loadError: error instanceof ApiError ? error.message : String(error) });
@@ -95,7 +102,7 @@ async function loadRules() {
 // --- actions -----------------------------------------------------------------
 
 async function refreshReports() {
-  const { reports } = await api.reports();
+  const reports = await backend.reports();
   store.set({ reports });
   return reports;
 }
@@ -105,7 +112,7 @@ async function analyze(payload) {
   renderToolbarOnly();
   announce('Analysing. This can take a few seconds on a large change.');
   try {
-    const report = await api.analyze(payload);
+    const report = await backend.analyze(payload);
     await refreshReports();
     store.set({ busy: false, report, reportId: report.id });
     announce(`Analysis finished: ${LEVEL_LABEL[report.level]} risk, score ${report.score}.`);
@@ -120,7 +127,7 @@ async function analyze(payload) {
 
 async function remove(id) {
   try {
-    await api.remove(id);
+    await backend.remove(id);
   } catch (error) {
     store.set({ error: error.message });
   }
@@ -134,6 +141,21 @@ async function remove(id) {
   }
 }
 
+/** The request that repeats an analysis, or null when it cannot be repeated (a pasted diff is not kept). */
+function rerunRequest(report) {
+  if (hosted()) {
+    const source = report.source;
+    if (source && source.type === 'github' && source.url) {
+      return { source: { type: 'github', url: source.url }, fail_on: report.gate.fail_on };
+    }
+    return null;
+  }
+  const range = report.range;
+  return range.mode === 'range'
+    ? { mode: 'range', base: range.base, head: range.head, history: true }
+    : { mode: range.mode, history: true };
+}
+
 // --- rendering ---------------------------------------------------------------
 
 function renderNav() {
@@ -144,24 +166,40 @@ function renderNav() {
 
 function renderBar() {
   const { repo, report } = store.get();
-  const name = repo ? repo.name : report ? report.repo : '';
-  mount(el.barEnd, name ? h('span', { class: 'bar-repo', title: repo ? repo.path : name }, name, repo && repo.branch ? ` @ ${repo.branch}` : '') : null, themeSwitch());
+  let label = null;
+  if (hosted()) label = h('span', { class: 'bar-repo' }, 'public instance');
+  else {
+    const name = repo ? repo.name : report ? report.repo : '';
+    if (name) label = h('span', { class: 'bar-repo', title: repo ? repo.path : name }, name, repo && repo.branch ? ` @ ${repo.branch}` : '');
+  }
+  mount(el.barEnd, label, themeSwitch());
 }
 
 function renderToolbarOnly() {
   const { repo, busy, error } = store.get();
   if (!repo || STATIC) return;
-  renderToolbar(el.toolbar, { repo, busy, error, onAnalyze: analyze });
+  if (hosted()) renderSourceForm(el.toolbar, { busy, error, limits: repo.limits, onAnalyze: analyze });
+  else renderToolbar(el.toolbar, { repo, busy, error, onAnalyze: analyze });
 }
 
 function renderRailOnly() {
   if (STATIC) return;
   const { reports, reportId } = store.get();
-  renderRail(el.rail, { reports, selectedId: reportId, onDelete: remove });
+  renderRail(el.rail, { reports, selectedId: reportId, onDelete: remove, caption: hosted() ? 'Kept in this browser' : null });
 }
 
 function emptyState() {
   const { repo } = store.get();
+  if (hosted()) {
+    return h(
+      'section',
+      { class: 'panel empty-state' },
+      h('h1', { class: 'h2' }, 'Is this change safe to merge?'),
+      h('p', null, 'ChangeRisk reads a code change and scores how risky it is: edited configuration, removed tests, loosened dependencies, committed secrets, destructive migrations, weakened pipelines. Each finding quotes the line and says what to test because of it.'),
+      h('p', null, 'Enter a public GitHub pull request above, or paste a diff. Use “Load an example” to see a full report.'),
+      h('p', { class: 'dim small' }, 'It also runs locally, on private repositories, as a command and a GitHub Action: ', h('a', { href: REPO_URL, target: '_blank', rel: 'noopener noreferrer' }, 'source and install instructions'), '.'),
+    );
+  }
   const base = repo && repo.default_base;
   const head = repo && (repo.branch || 'HEAD');
   const can = repo && repo.has_commits && base && base !== head;
@@ -181,8 +219,9 @@ function reportView(report) {
   const { reports } = store.get();
   const failOn = report.gate.fail_on;
   const select = (id) => { location.hash = `#/r/${id}`; };
+  const again = STATIC ? null : rerunRequest(report);
   return [
-    changeHeader(report, { onRerun: STATIC ? null : () => analyze(report.range.mode === 'range' ? { mode: 'range', base: report.range.base, head: report.range.head, history: true } : { mode: report.range.mode, history: true }), canExport: !STATIC }),
+    changeHeader(report, { onRerun: again ? () => analyze(again) : null, exporter: STATIC ? null : backend.exporter(report) }),
     verdictPanel(report),
     reasonsSection(report),
     planSection(report),
@@ -198,7 +237,7 @@ function renderMain() {
   el.main.classList.toggle('is-loading', s.loading);
   document.title = 'ChangeRisk';
   if (s.view === 'history') {
-    mount(el.main, historyView({ reports: s.reports, failOn: s.repo && s.report ? s.report.gate.fail_on : 'high', onSelect: (id) => { location.hash = `#/r/${id}`; } }));
+    mount(el.main, historyView({ reports: s.reports, failOn: s.report ? s.report.gate.fail_on : 'high', onSelect: (id) => { location.hash = `#/r/${id}`; } }));
     return;
   }
   if (s.view === 'rules') {
@@ -236,8 +275,10 @@ async function start() {
     return;
   }
   try {
-    const [repo, list] = await Promise.all([api.repo(), api.reports()]);
-    store.set({ repo, reports: list.reports });
+    const repo = await api.repo();
+    backend = repo.hosted ? hostedBackend() : serverBackend();
+    if (repo.hosted) document.body.dataset.hosted = '';
+    store.set({ repo, reports: await backend.reports() });
   } catch (error) {
     mount(el.main, h('section', { class: 'panel' }, h('h1', { class: 'h2' }, 'The dashboard cannot reach its server'), h('p', null, error.message)));
     return;

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -16,6 +17,14 @@ DELETED = "deleted"
 RENAMED = "renamed"
 COPIED = "copied"
 TYPECHANGE = "typechange"
+
+
+_FULL_SHA = re.compile(r"[0-9a-f]{40}")
+
+
+def display_ref(ref: str) -> str:
+    """A ref as a person would write it: full commit ids are cut to eight characters."""
+    return ref[:8] if _FULL_SHA.fullmatch(ref) else ref
 
 
 class Severity(IntEnum):
@@ -142,6 +151,7 @@ class ChangeSet:
     repo_files: frozenset[str] = frozenset()
     repo_name: str = ""
     truncated: bool = False
+    source: dict[str, Any] | None = None  # set for pasted diffs and GitHub pull requests
 
     @property
     def additions(self) -> int:
@@ -273,6 +283,7 @@ class RiskReport:
     commits: list[CommitInfo]
     notes: list[str] = field(default_factory=list)
     id: str | None = None
+    source: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -315,6 +326,7 @@ class RiskReport:
                 for c in self.commits
             ],
             "notes": self.notes,
+            "source": self.source,
         }
 
     @classmethod
@@ -390,4 +402,5 @@ class RiskReport:
             ],
             notes=list(data.get("notes", [])),
             id=data.get("id"),
+            source=data.get("source"),
         )

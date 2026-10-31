@@ -263,3 +263,36 @@ summary::-webkit-details-marker { display: none; }
 .mini.danger { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .rail-empty { padding: var(--gap-3); color: var(--ink-2); font-size: 0.82rem; }
 @media (hover: none) { .rail-del { opacity: 1; } }
+
+/* Hosted input -------------------------------------------------------------------------- */
+
+.source-form { display: grid; gap: var(--gap-3); }
+.source-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--gap-3); }
+.source-pane { display: grid; gap: var(--gap-2); }
+.source-pane[hidden] { display: none; }
+.source-form input[type="text"], .source-form textarea { width: 100%; }
+.source-form textarea {
+  min-height: 9.5rem; resize: vertical;
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--raised); color: var(--ink);
+  padding: 8px 10px;
+  font-family: var(--mono); font-size: 0.78rem; line-height: 1.5;
+  white-space: pre; overflow: auto;
+}
+.source-form textarea:hover, .source-form input[type="text"]:hover { border-color: var(--ink); }
+.source-hint { font-size: var(--fs-sm); color: var(--ink-3); }
+.source-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-2) var(--gap-3); }
+.source-tools .btn-quiet { padding-inline: 8px; }
+.source-size[data-over="true"] { color: var(--st-critical); font-weight: 600; }
+.source-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--gap-3); padding-top: var(--gap-2); border-top: 1px solid var(--line); }
+.privacy { font-size: var(--fs-sm); color: var(--ink-3); max-width: 60ch; }
+.source-problems:empty { display: none; }
+.toolbar-body { display: block; }
+.rail-caption { padding: 0 var(--gap-1) var(--gap-2); font-size: var(--fs-sm); color: var(--ink-3); }
+@media (max-width: 700px) {
+  .source-head .segmented { width: 100%; }
+  .source-head .seg { flex: 1; }
+  .source-head .seg span { text-align: center; padding-inline: 6px; }
+  .source-head .field-gate { width: 100%; }
+  .source-foot .btn-primary { width: 100%; }
+}

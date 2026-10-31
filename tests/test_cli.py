@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from changerisk import cli
+from changerisk import __version__, cli
 
 from .test_engine import risky_branch, seeded
 
@@ -171,7 +171,7 @@ def test_version(capsys):
     with pytest.raises(SystemExit) as stop:
         run("--version")
     assert stop.value.code == 0
-    assert capsys.readouterr().out.startswith("changerisk 0.1.0")
+    assert capsys.readouterr().out.startswith(f"changerisk {__version__}")
 
 
 @pytest.mark.parametrize(

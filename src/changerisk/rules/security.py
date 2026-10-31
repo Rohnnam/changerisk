@@ -68,7 +68,9 @@ _PROVIDERS = (
     ("JSON web token", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"), 0),
 )  # fmt: skip
 _GENERIC = re.compile(
-    r"""(?ix)[\w.-]*?(password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|
+    # No leading prefix: a lazy `[\w.-]*?` here made the search quadratic on long runs of word
+    # characters (a minified bundle, or hostile input). `search` already finds PASSWORD in DB_PASSWORD.
+    r"""(?ix)(password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|
     client[_-]?secret|auth[_-]?token)\b["']?\s*[:=]\s*["']([^"'\s]{8,})["']"""
 )
 _PLACEHOLDER = (

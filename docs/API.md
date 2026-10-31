@@ -41,17 +41,49 @@ Requests need a `Host` header naming the address the server is listening on. Wri
 
 Static files are served from `/`. Anything else is a 404.
 
+## Hosted mode
+
+`changerisk serve --hosted` serves the same dashboard without a repository (see
+[DEPLOY.md](DEPLOY.md)). Its API is smaller and stateless:
+
+| Method and path | Purpose |
+|---|---|
+| `GET /api/health` | `{"ok": true, "version": "...", "hosted": true}` |
+| `GET /api/repo` | `{"hosted": true, "version": "...", "limits": {...}, "github_token": false}`; the dashboard uses `hosted` to choose its interface |
+| `GET /api/rules` | The rule catalogue with default settings |
+| `POST /api/analyze` | Analyse a source and return the report. Nothing is stored; `id` is `null` |
+| `POST /api/render` | Render a report the client holds as `html`, `json`, `markdown`, `sarif` or `text`, sent as a download |
+
+`POST /api/analyze` body:
+
+```json
+{
+  "source": { "type": "diff", "text": "diff --git a/..." },
+  "fail_on": "high"
+}
+```
+
+or `"source": { "type": "github", "url": "https://github.com/owner/repo/pull/123" }`. The URL may also
+be `owner/repo#123` or a compare link. `fail_on` is `never`, `moderate`, `high` (default) or `critical`.
+
+`POST /api/render` body: `{"format": "markdown", "report": { ... }}`, where `report` is a report object
+as returned by `/api/analyze`.
+
+Extra statuses: 404 (GitHub cannot find it, or it is private), 413 (too large), 429 (rate limit, with
+`Retry-After`), 502 (GitHub unreachable), 503 (busy, with `Retry-After`). The reports and export
+endpoints of the local server do not exist here.
+
 ## Report object (`changerisk.report/1`)
 
 ```jsonc
 {
   "schema": "changerisk.report/1",
   "id": "20260914-011200-52c840a",      // null until saved
-  "tool_version": "0.1.0",
+  "tool_version": "0.2.0",
   "generated_at": "2026-09-14T01:12:00+00:00",
   "repo": "ledgerline",
   "range": {
-    "mode": "range",                     // or "staged", "worktree"
+    "mode": "range",                     // or "staged", "worktree", "pr" (GitHub), "diff" (pasted)
     "base": "main", "head": "feature/faster-checkout",
     "base_sha": "...", "head_sha": "...", "merge_base": "..."
   },
@@ -90,7 +122,8 @@ Static files are served from `/`. Anything else is a 404.
     }
   ],
   "commits": [ { "sha": "...", "author": "...", "date": "...", "subject": "..." } ],
-  "notes": [ "4 more suggested checks are listed on the individual findings." ]
+  "notes": [ "4 more suggested checks are listed on the individual findings." ],
+  "source": null                     // for hosted analyses: {"type": "github", "url", "title", "number", "author", "state", "label"} or {"type": "diff"}
 }
 ```
 

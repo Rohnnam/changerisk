@@ -50,6 +50,35 @@ jobs:
         working-directory: frontend
         run: node --test
 
+  container:
+    name: container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t changerisk .
+      - name: Run it and use it
+        run: |
+          docker run -d --name cr -p 7860:7860 changerisk
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:7860/api/health >/dev/null && break || sleep 1; done
+          curl -fsS http://127.0.0.1:7860/api/health | grep -q '"hosted": true'
+          python3 - <<'PY'
+          import json, urllib.request
+          diff = "diff --git a/config/production.yml b/config/production.yml\n--- a/config/production.yml\n+++ b/config/production.yml\n@@ -1 +1 @@\n-debug: false\n+debug: true\n"
+          req = urllib.request.Request(
+              "http://127.0.0.1:7860/api/analyze",
+              data=json.dumps({"source": {"type": "diff", "text": diff}}).encode(),
+              headers={"Content-Type": "application/json"},
+          )
+          report = json.load(urllib.request.urlopen(req, timeout=30))
+          assert report["level"] in ("moderate", "high", "critical"), report["level"]
+          assert any(f["rule"] == "CFG002" for f in report["findings"])
+          print("analysed in the container:", report["score"], report["level"])
+          PY
+      - name: Container logs
+        if: always()
+        run: docker logs cr
+
   package:
     name: package
     runs-on: ubuntu-latest

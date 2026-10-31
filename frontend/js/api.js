@@ -37,7 +37,33 @@ export const api = {
   analyze: (payload) => request('POST', '/api/analyze', payload),
   remove: (id) => request('DELETE', `/api/reports/${encodeURIComponent(id)}`),
   exportUrl: (id, format) => `/api/reports/${encodeURIComponent(id)}/export?format=${format}`,
+  // hosted dashboard: the change arrives as a pasted diff or a GitHub URL, and nothing is stored server-side
+  analyzeSource: (payload) => request('POST', '/api/analyze', payload),
 };
+
+/** Ask the hosted server to render a report the browser holds as Markdown, SARIF, HTML and so on. */
+export async function renderReport(format, report) {
+  let response;
+  try {
+    response = await fetch('/api/render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format, report }),
+    });
+  } catch {
+    throw new ApiError('Could not reach the ChangeRisk server.', 0);
+  }
+  if (!response.ok) {
+    let message = `The server answered ${response.status}.`;
+    try {
+      message = (await response.json()).error || message;
+    } catch {
+      // keep the status message
+    }
+    throw new ApiError(message, response.status);
+  }
+  return response.text();
+}
 
 export async function fetchText(url) {
   let response;

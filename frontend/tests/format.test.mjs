@@ -59,6 +59,7 @@ test('long refs are shortened in the middle', () => {
   assert.ok(short.startsWith('feature/a-'));
   assert.ok(short.includes('…'));
   assert.equal(shortRef(''), '');
+  assert.equal(shortRef('b507c730910f2ea6d3ad0e4ecbfd4a507786e0bc'), 'b507c730');
 });
 
 test('sentenceCase', () => {
