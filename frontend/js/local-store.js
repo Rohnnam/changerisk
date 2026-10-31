@@ -17,7 +17,7 @@ export function summarize(report) {
     repo: report.repo,
     mode: range.mode,
     base: range.base,
-    head: range.head,
+    head: range.mode === 'diff' && report.source && report.source.label ? report.source.label : range.head,
     head_sha: (range.head_sha || '').slice(0, 8),
     score: report.score,
     level: report.level,

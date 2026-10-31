@@ -58,7 +58,7 @@ Static files are served from `/`. Anything else is a 404.
 
 ```json
 {
-  "source": { "type": "diff", "text": "diff --git a/..." },
+  "source": { "type": "diff", "text": "diff --git a/...", "label": "optional name, 60 characters at most" },
   "fail_on": "high"
 }
 ```

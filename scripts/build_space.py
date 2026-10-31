@@ -53,8 +53,8 @@ short_description: Score a code change and see what to test
 
 # ChangeRisk
 
-Paste a git diff or give a public GitHub pull request, and ChangeRisk scores how risky the change
-is and lists what to test because of it: edited configuration, removed tests, loosened
+Click one of the built-in examples, paste a git diff or give a public GitHub pull request, and
+ChangeRisk scores how risky the change is and lists what to test because of it: edited configuration, removed tests, loosened
 dependencies, committed secrets, destructive migrations, weakened pipelines.
 
 The analysis runs inside your browser (Python compiled to WebAssembly). A pasted diff is never sent

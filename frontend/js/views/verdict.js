@@ -7,6 +7,7 @@ import { EXPORT_TYPES } from '../download.js';
 
 export function changeHeader(report, { onRerun, exporter }) {
   const range = rangeLabel(report.range);
+  if (range.single && report.source && report.source.label) range.to = report.source.label; // a named diff, such as an example
   const sha = report.range.head_sha ? report.range.head_sha.slice(0, 8) : null;
   const meta = [
     plural(report.stats.files, 'file'),

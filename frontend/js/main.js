@@ -7,6 +7,7 @@ import { applyTheme, currentTheme, themeSwitch } from './theme.js';
 import { LEVEL_LABEL } from './model.js';
 import { renderToolbar } from './views/toolbar.js';
 import { renderSourceForm, setEngineStatus } from './views/source-form.js';
+import { examplesPanel, REAL_PULL } from './views/examples.js';
 import { renderRail } from './views/rail.js';
 import { changeHeader, verdictPanel } from './views/verdict.js';
 import { reasonsSection } from './views/reasons.js';
@@ -120,6 +121,7 @@ async function refreshReports() {
 }
 
 async function analyze(payload) {
+  if (store.get().busy) return;
   store.set({ busy: true, error: null });
   renderToolbarOnly();
   announce('Analysing. This can take a few seconds on a large change.');
@@ -200,15 +202,25 @@ function renderRailOnly() {
   renderRail(el.rail, { reports, selectedId: reportId, onDelete: remove, caption: hosted() ? 'Kept in this browser' : null });
 }
 
+const chosenGate = () => {
+  const select = document.getElementById('s-gate');
+  return select ? select.value : 'high';
+};
+
 function emptyState() {
-  const { repo } = store.get();
+  const { repo, busy } = store.get();
   if (hosted()) {
     return h(
       'section',
       { class: 'panel empty-state' },
       h('h1', { class: 'h2' }, 'Is this change safe to merge?'),
       h('p', null, 'ChangeRisk reads a code change and scores how risky it is: edited configuration, removed tests, loosened dependencies, committed secrets, destructive migrations, weakened pipelines. Each finding quotes the line and says what to test because of it.'),
-      h('p', null, 'Enter a public GitHub pull request above, or paste a diff. Use “Load an example” to see a full report.'),
+      h('p', null, 'Enter a public GitHub pull request above, or paste a diff. Or pick one of the examples below.'),
+      examplesPanel({
+        busy,
+        onDiff: (example) => analyze({ source: { type: 'diff', text: example.diff, label: `Example: ${example.label}` }, fail_on: chosenGate() }),
+        onPull: () => analyze({ source: { type: 'github', url: REAL_PULL.url }, fail_on: chosenGate() }),
+      }),
       h('p', { class: 'dim small' }, 'It also runs locally, on private repositories, as a command and a GitHub Action: ', h('a', { href: REPO_URL, target: '_blank', rel: 'noopener noreferrer' }, 'source and install instructions'), '.'),
     );
   }
